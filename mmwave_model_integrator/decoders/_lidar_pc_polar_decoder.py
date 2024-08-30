@@ -35,3 +35,20 @@ class _lidarPCPolarDecoder:
                 model output
         """
         pass
+
+    def convert_polar_to_cartesian(self,points_polar:np.ndarray)->np.ndarray:
+
+        """Convert an array of points stored as (range, azimuth) to (x,y)
+
+        Args:
+            points_polar (np.ndarray): Nx2 matrix of points in spherical (range,azimuth)
+
+        Returns:
+            (np.ndarray): Nx2 matrix of  points in cartesian (x,y)
+        """
+
+        x = points_polar[:,0] *  np.cos(points_polar[:,1])
+        y = points_polar[:,0] *  np.sin(points_polar[:,1])
+
+
+        return np.column_stack((x,y))
