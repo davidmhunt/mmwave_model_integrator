@@ -8,8 +8,7 @@ class RadCloudDecoder(_lidarPCPolarDecoder):
                  max_range_m:float,
                  num_range_bins:int,
                  angle_range_rad:list,
-                 num_angle_bins:int,
-                 num_previous_frames) -> None:
+                 num_angle_bins:int) -> None:
 
         #additional range parameters
         self.max_range_m = max_range_m
@@ -32,7 +31,7 @@ class RadCloudDecoder(_lidarPCPolarDecoder):
                 self.num_angle_bins
         self.az_angle_res_deg = np.rad2deg(self.az_angle_res_rad)
 
-        self.az_angle_bins = \
+        self.angle_bins = \
             np.flip(
                 np.arange(
                     self.az_angle_range_rad[0],
@@ -52,6 +51,6 @@ class RadCloudDecoder(_lidarPCPolarDecoder):
         rng_idx,az_idx = np.nonzero(model_prediction)
 
         rng_vals = self.range_bins[rng_idx]
-        az_vals = self.az_angle_bins[az_idx]
+        az_vals = self.angle_bins[az_idx]
 
         return np.column_stack((rng_vals,az_vals))

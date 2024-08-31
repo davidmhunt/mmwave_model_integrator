@@ -13,14 +13,14 @@ class RadCloudEncoder(_RadarRangeAzEncoder):
             config_manager: ConfigManager,
             max_range_bin:int,
             num_chirps_to_encode:int,
-            radar_fov:list,
+            radar_fov_rad:list,
             range_az_num_angle_bins:int,
             power_range_dB:list) -> None:
         
         #configuration parameters
         self.max_range_bin:int = max_range_bin
         self.num_chirps_to_encode:int = num_chirps_to_encode
-        self.radar_fov:list = radar_fov
+        self.radar_fov_rad:list = radar_fov_rad
         self.range_az_num_angle_bins:int = range_az_num_angle_bins
         self.power_range_dB:list = power_range_dB
 
@@ -42,8 +42,8 @@ class RadCloudEncoder(_RadarRangeAzEncoder):
 
         #determine the angle bins to keep
         self.angle_bins_to_keep = \
-            (self.range_azimuth_processor.angle_bins > self.radar_fov[0]) \
-            & (self.range_azimuth_processor.angle_bins < self.radar_fov[1])
+            (self.range_azimuth_processor.angle_bins > self.radar_fov_rad[0]) \
+            & (self.range_azimuth_processor.angle_bins < self.radar_fov_rad[1])
         self.angle_bins = \
             self.range_azimuth_processor.angle_bins[self.angle_bins_to_keep]
         #compute the mesh grid
