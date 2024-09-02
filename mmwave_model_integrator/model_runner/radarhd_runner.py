@@ -4,11 +4,10 @@ from torch.nn import Module
 from torchvision import transforms
 from torchvision.transforms import Compose
 
-from radcloud.models.unet import unet
-
+from radarhd.model import UNet1
 from mmwave_model_integrator.model_runner._model_runner import _ModelRunner
 
-class RadCloudRunner(_ModelRunner):
+class RadarHDRunner(_ModelRunner):
 
     def __init__(
             self,
@@ -16,58 +15,75 @@ class RadCloudRunner(_ModelRunner):
             cuda_device="cuda:0") -> None:
         
         #specify the radcloud model
-        radcloud_model = unet(
-            encoder_input_channels= 40,
-            encoder_out_channels= (64,128,256),
-            decoder_input_channels= (512,256,128),
-            decoder_out_channels= 64,
-            output_channels= 1,
-            retain_dimmension= False,
-            input_dimmensions= (64,48)
+        radarhd_model = UNet1(
+            n_channels=41,
+            n_classes=1,
+            bilinear=True
         )
 
         #specify the transforms
         self.transforms = Compose([
-            transforms.ToTensor(),
-            transforms.Resize((64,48))
+            transforms.ToTensor()
         ])
         
         super().__init__(
-            model=radcloud_model,
+            model=radarhd_model,
             state_dict_path=state_dict_path,
             cuda_device=cuda_device
         )
 
     def configure(self):
         """Load the model onto the desired device. 
-        Same as parent class, no additional function needed
+        overriding parent class
         """
         #no additional function needs to be added
-        super().configure()
+        #load the state dictionary
+        if self.device != 'cpu':
+            self.model.load_state_dict(
+                torch.load(self.state_dict_path,
+                           weights_only=True)["state_dict"])
+        else:
+            self.model.load_state_dict(
+                torch.load(
+                    self.state_dict_path,
+                    map_location='cpu',
+                    weights_only=True)["state_dict"])
+        
+        #send the model to the device
+        self.model.to(self.device)
+
+        #put the model into evaluation mode
+        self.model.eval()
 
         return
 
     def make_prediction(self, input: np.ndarray):
 
         x = input.astype(np.float32)
+        x = x / 255.0
+
         with torch.no_grad():
         
             #apply transforms (i.e: convert to tensor)
             self.model.eval()
             
-            x = self.transforms(x)
+            # x = self.transforms(x)
+            x = torch.Tensor(x)
             
             #since only one sample, need to unsqueeze
             x = torch.unsqueeze(x,0)
+
             #send x to device
             x = x.to(self.device)
 
             #get the prediction and apply sigmoid
             pred = self.model(x).squeeze()
-            pred = torch.sigmoid(pred)
             pred = pred.cpu().numpy()
 
             #filter out weak predictions
-            pred = (pred > 0.5) * 1.0
+            pred = (pred*255).astype(np.uint8)
+
+            #return all predictions with a value greater than 1
+            pred = (pred >= 1) * 1
 
         return pred

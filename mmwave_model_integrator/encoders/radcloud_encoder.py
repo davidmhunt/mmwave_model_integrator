@@ -14,14 +14,14 @@ class RadCloudEncoder(_RadarRangeAzEncoder):
             max_range_bin:int,
             num_chirps_to_encode:int,
             radar_fov_rad:list,
-            range_az_num_angle_bins:int,
+            num_az_angle_bins:int,
             power_range_dB:list) -> None:
         
         #configuration parameters
         self.max_range_bin:int = max_range_bin
         self.num_chirps_to_encode:int = num_chirps_to_encode
         self.radar_fov_rad:list = radar_fov_rad
-        self.range_az_num_angle_bins:int = range_az_num_angle_bins
+        self.num_az_angle_bins:int = num_az_angle_bins
         self.power_range_dB:list = power_range_dB
 
         #derrived parameters
@@ -35,6 +35,9 @@ class RadCloudEncoder(_RadarRangeAzEncoder):
 
         #configure virtual array processors and range az response
         super().configure()
+
+        #encoder has no frame history (encoding is ready on first encoding)
+        self.full_encoding_ready = True
 
         #determine the finalized set of range bins
         self.range_bins = \
@@ -50,8 +53,8 @@ class RadCloudEncoder(_RadarRangeAzEncoder):
         self.thetas,self.rhos = \
             np.meshgrid(self.range_azimuth_processor.angle_bins[self.angle_bins_to_keep],
                         self.range_azimuth_processor.range_bins[:self.max_range_bin])
-        self.x_s = np.multiply(self.rhos,np.sin(self.thetas))
-        self.y_s = np.multiply(self.rhos,np.cos(self.thetas))
+        self.x_s = np.multiply(self.rhos,np.cos(self.thetas))
+        self.y_s = np.multiply(self.rhos,np.sin(self.thetas))
         
         return
     
@@ -97,3 +100,17 @@ class RadCloudEncoder(_RadarRangeAzEncoder):
             frame_range_az_heatmap[:,:,i] = rng_az_resp
 
         return frame_range_az_heatmap
+    
+    def get_rng_az_resp_from_encoding(self, rng_az_resp: np.ndarray) -> np.ndarray:
+        """Given an encoded range azimuth response, return a single
+        range azimuth response that can then be plotted. Implemented
+        by child class
+
+        Args:
+            rng_az_resp (np.ndarray): encoded range azimuth response
+                (rng bins) x (az bins) x (num chirps)
+
+        Returns:
+            np.ndarray: (range bins) x (az bins) range azimuth response
+        """
+        return rng_az_resp[:,:,0]

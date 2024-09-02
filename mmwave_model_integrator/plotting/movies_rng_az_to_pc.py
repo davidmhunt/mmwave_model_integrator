@@ -137,8 +137,7 @@ class MovieGeneratorRngAzToPC:
             self.clear_axes()
     
     def generate_movie_frames(
-            self,
-            chirp_idx):
+            self):
 
         for i in tqdm.tqdm(range(self.dataset.num_frames)):
 
@@ -150,7 +149,6 @@ class MovieGeneratorRngAzToPC:
                 range_az_encoder=self.range_az_encoder,
                 model_runner=self.model_runner,
                 lidar_pc_polar_decoder=self.lidar_pc_polar_decoder,
-                chirp_idx=chirp_idx,
                 axs=self.axs,
                 show=False
             )

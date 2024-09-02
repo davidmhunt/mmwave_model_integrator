@@ -46,16 +46,22 @@ class PlotterRngAzToPC:
         if not ax:
             fig,ax = plt.subplots()
         
+        #rotate the grids by 90 degrees so that the x-axis is displayed
+        #along the y axis
+        
+        x_grid = -1 * range_az_encoder.y_s
+        y_grid = range_az_encoder.x_s
+
         ax.pcolormesh(
-            range_az_encoder.x_s,
-            range_az_encoder.y_s,
+            x_grid,
+            y_grid,
             resp,
             cmap=cmap,
             shading='gouraud'
         )
 
-        ax.set_xlabel("X (m)",fontsize=self.font_size_axis_labels)
-        ax.set_ylabel("Y (m)",fontsize=self.font_size_axis_labels)
+        ax.set_xlabel("Y (m)",fontsize=self.font_size_axis_labels)
+        ax.set_ylabel("X (m)",fontsize=self.font_size_axis_labels)
         
         ax.set_title("Range-Azimuth\nHeatmap (Cart.)",fontsize=self.font_size_title)
         
@@ -134,6 +140,10 @@ class PlotterRngAzToPC:
 
         if not ax:
             fig,ax = plt.subplots()
+
+        #flip the image to be easier to read
+        if lidar_pc_polar_decoder.range_bins[0] < lidar_pc_polar_decoder.range_bins[-1]:
+            pred = np.flip(pred,axis=0)
 
         ax.imshow(
             pred,
@@ -214,7 +224,6 @@ class PlotterRngAzToPC:
             range_az_encoder:_RadarRangeAzEncoder,
             model_runner:_ModelRunner,
             lidar_pc_polar_decoder:_lidarPCPolarDecoder,
-            chirp_idx:int=0,
             axs:plt.Axes=[],
             show=False
     ):
@@ -235,10 +244,14 @@ class PlotterRngAzToPC:
             fig.subplots_adjust(wspace=0.3,hspace=0.30)
         
         #plot range az response
-        rng_az_resp = range_az_encoder.encode(adc_cube)
+        rng_az_resp_encoded = range_az_encoder.encode(adc_cube)
+
+        rng_az_to_plot = range_az_encoder.get_rng_az_resp_from_encoding(
+            rng_az_resp=rng_az_resp_encoded
+        )
 
         self.plot_range_az_resp_cart(
-            resp=rng_az_resp[:,:,chirp_idx],
+            resp=rng_az_to_plot,
             range_az_encoder=range_az_encoder,
             cmap="gray",
             ax=axs[0,0],
@@ -246,35 +259,37 @@ class PlotterRngAzToPC:
         )
 
         self.plot_range_az_resp_polar(
-            resp=rng_az_resp[:,:,chirp_idx],
+            resp=rng_az_to_plot,
             range_az_encoder=range_az_encoder,
             cmap="gray",
             ax=axs[1,0],
             show=False
         )
 
-        #plot the prediction
-        pred = model_runner.make_prediction(input=rng_az_resp)
+        if range_az_encoder.full_encoding_ready:
 
-        self.plot_model_pred_polar(
-            pred=pred,
-            lidar_pc_polar_decoder=lidar_pc_polar_decoder,
-            cmap="binary",
-            ax=axs[1,1],
-            show=False
-        )
+            #plot the prediction
+            pred = model_runner.make_prediction(input=rng_az_resp_encoded)
 
-        #plot the point cloud in cartesian
-        pc = lidar_pc_polar_decoder.convert_polar_to_cartesian(
-            lidar_pc_polar_decoder.decode(pred)
-        )
+            self.plot_model_pred_polar(
+                pred=pred,
+                lidar_pc_polar_decoder=lidar_pc_polar_decoder,
+                cmap="binary",
+                ax=axs[1,1],
+                show=False
+            )
 
-        self.plot_decoded_pc(
-            point_cloud=pc,
-            lidar_pc_polar_decoder=lidar_pc_polar_decoder,
-            ax=axs[0,1],
-            show=False
-        )
+            #plot the point cloud in cartesian
+            pc = lidar_pc_polar_decoder.convert_polar_to_cartesian(
+                lidar_pc_polar_decoder.decode(pred)
+            )
+
+            self.plot_decoded_pc(
+                point_cloud=pc,
+                lidar_pc_polar_decoder=lidar_pc_polar_decoder,
+                ax=axs[0,1],
+                show=False
+            )
 
         if show:
             plt.show()

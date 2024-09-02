@@ -95,7 +95,7 @@ Follow the following instructions to install the correct version of pytorch for 
 
 1. Navigate to the [pytorch installation page](https://pytorch.org/get-started/locally/). Select the requirements for your system. However, under the "package" select the "Pip" option. Once you have specified the options for your system, you'll get a command similar to this
 ```
-pip3 install torch torchvision torchaudio
+pip3 install torch torchvision torchaudio torchsummary
 ```
 2. Navigate to the mmwave_model_integrator folder
 ```
@@ -134,3 +134,9 @@ MOVIE_TEMP_DIRECTORY=/example/your_directory
 MODEL_STATE_DICT_PATH=/example/state_dict.pth
 ```
 3. Replace the example text with the path to your directory
+
+## Loading the radarHD model
+
+```
+https://drive.google.com/file/d/1JorZEkDCIcQDSaMAabvkQX4scvwj0wzn/view?usp=sharing
+```

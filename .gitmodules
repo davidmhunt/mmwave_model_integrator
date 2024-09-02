@@ -7,3 +7,6 @@
 [submodule "submodules/radcloud"]
 	path = submodules/radcloud
 	url = https://github.com/davidmhunt/radcloud.git
+[submodule "submodules/radarhd"]
+	path = submodules/radarhd
+	url = https://github.com/davidmhunt/radarhd.git
