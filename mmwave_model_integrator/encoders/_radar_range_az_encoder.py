@@ -32,6 +32,10 @@ class _RadarRangeAzEncoder:
         self.virtual_array_reformater:VirtualArrayReformatter = None
         self.range_azimuth_processor:RangeAzimuthProcessor = None
 
+        #array for the encoded data
+        #NOTE: #indexed/implemented depending on child class
+        self.encoded_data:np.ndarray = None
+        
         #complete the configuration
         self.configure()
 
@@ -68,6 +72,12 @@ class _RadarRangeAzEncoder:
                 into the model
         """
         pass
+
+    def reset_history(self):
+        """Implemented by child class to reset encoder history (if applicable)
+        """
+
+        return
 
     def get_rng_az_resp_from_encoding(self,rng_az_resp:np.ndarray)->np.ndarray:
         """Given an encoded range azimuth response, return a single

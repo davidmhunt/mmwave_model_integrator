@@ -30,9 +30,12 @@ class RadarHDEncoder(_RadarRangeAzEncoder):
 
         #encoding the data with a specific amount of history stored
         self.num_frames_history=num_frames_history
-        self.encoded_data:np.ndarray = None #indexed by frame, rng bin, az bin
         self.num_frames_encoded:int = None
 
+        #array for latest encoded data (from parent class)
+        #indexed by frame, rng bin, az bin
+        self.encoded_data:np.ndarray = None 
+        
 
         #seperate x and y mesh grid for dealing with the whole range az resp
         self.rhos_full:np.ndarray = None
@@ -141,6 +144,19 @@ class RadarHDEncoder(_RadarRangeAzEncoder):
         frame_image_polar = self.create_image_polar(pc_polar)
 
         return frame_image_polar
+    
+    def reset_history(self):
+        """Reset the encoded data and the tracking of the number of encoded frames
+        """
+        self.encoded_data= np.zeros(
+            shape=(self.num_frames_history+1,
+                   self.num_range_bins,
+                   self.num_az_angle_bins),
+            dtype=np.uint8
+        )
+        self.num_frames_encoded = 0
+
+        return
     
     def get_rng_az_resp_from_encoding(self, rng_az_resp: np.ndarray) -> np.ndarray:
         """Given an encoded range azimuth response, return a single

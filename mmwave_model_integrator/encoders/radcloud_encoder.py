@@ -27,6 +27,10 @@ class RadCloudEncoder(_RadarRangeAzEncoder):
         #derrived parameters
         self.angle_bins_to_keep:np.ndarray = None
 
+        #array for latest encoded data (from parent class)
+        #NOTE: indexed by range bin, az bin, chirp idx
+        self.encoded_data:np.ndarray = None
+
         super().__init__(config_manager)
 
         return
@@ -35,9 +39,6 @@ class RadCloudEncoder(_RadarRangeAzEncoder):
 
         #configure virtual array processors and range az response
         super().configure()
-
-        #encoder has no frame history (encoding is ready on first encoding)
-        self.full_encoding_ready = True
 
         #determine the finalized set of range bins
         self.range_bins = \
@@ -60,7 +61,7 @@ class RadCloudEncoder(_RadarRangeAzEncoder):
     
     def encode(self, adc_data_cube: np.ndarray) -> np.ndarray:
 
-        frame_range_az_heatmap = np.zeros(
+        self.encoded_data = np.zeros(
             shape=(
                 self.max_range_bin,
                 np.sum(self.angle_bins_to_keep),
@@ -97,9 +98,17 @@ class RadCloudEncoder(_RadarRangeAzEncoder):
             rng_az_resp = (rng_az_resp - self.power_range_dB[0]) / \
                 (self.power_range_dB[1] - self.power_range_dB[0])
 
-            frame_range_az_heatmap[:,:,i] = rng_az_resp
+            self.encoded_data[:,:,i] = rng_az_resp
+        
+        #note that a full encoding is now ready
+        self.full_encoding_ready = True
 
-        return frame_range_az_heatmap
+        return self.encoded_data
+    
+    def reset_history(self):
+        """No history, method isn't used for this encoder
+        """
+        return super().reset_history()
     
     def get_rng_az_resp_from_encoding(self, rng_az_resp: np.ndarray) -> np.ndarray:
         """Given an encoded range azimuth response, return a single
