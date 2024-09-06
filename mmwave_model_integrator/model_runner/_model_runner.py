@@ -10,7 +10,7 @@ class _ModelRunner:
             state_dict_path:str,
             cuda_device = "cuda:0") -> None:
         
-        if torch.cuda.is_available():
+        if torch.cuda.is_available() and cuda_device!="cpu":
 
             self.device = cuda_device
             torch.cuda.set_device(self.device)
