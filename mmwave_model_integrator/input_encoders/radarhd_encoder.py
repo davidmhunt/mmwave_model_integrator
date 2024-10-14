@@ -3,7 +3,7 @@ import numpy as np
 from mmwave_radar_processing.config_managers.cfgManager import ConfigManager
 from mmwave_radar_processing.processors.virtual_array_reformater import VirtualArrayReformatter
 from mmwave_radar_processing.processors.range_azmith_resp import RangeAzimuthProcessor
-from mmwave_model_integrator.encoders._radar_range_az_encoder import _RadarRangeAzEncoder
+from mmwave_model_integrator.input_encoders._radar_range_az_encoder import _RadarRangeAzEncoder
 
 class RadarHDEncoder(_RadarRangeAzEncoder):
 
