@@ -4,6 +4,7 @@ from matplotlib.figure import Figure
 from matplotlib.axes import Axes
 import tqdm
 import imageio
+import numpy as np
 
 from mmwave_radar_processing.config_managers.cfgManager import ConfigManager
 from cpsl_datasets.cpsl_ds import CpslDS
@@ -15,6 +16,7 @@ from mmwave_model_integrator.plotting.plotter_rng_az_to_pc import PlotterRngAzTo
 from mmwave_model_integrator.input_encoders._radar_range_az_encoder import _RadarRangeAzEncoder
 from mmwave_model_integrator.decoders._lidar_pc_polar_decoder import _lidarPCPolarDecoder
 from mmwave_model_integrator.model_runner._model_runner import _ModelRunner
+from mmwave_model_integrator.output_encoders._lidar_2D_pc_encoder import _Lidar2DPCEncoder
 
 class MovieGeneratorRngAzToPC:
 
@@ -22,8 +24,9 @@ class MovieGeneratorRngAzToPC:
                  cpsl_dataset:CpslDS,
                  plotter:PlotterRngAzToPC,
                  range_az_encoder:_RadarRangeAzEncoder,
-                 model_runner:_ModelRunner,
-                 lidar_pc_polar_decoder:_lidarPCPolarDecoder,
+                 model_runner:_ModelRunner=None,
+                 lidar_pc_polar_decoder:_lidarPCPolarDecoder=None,
+                 lidar_pc_encoder:_Lidar2DPCEncoder=None,
                  temp_dir_path="~/Downloads/odometry_temp",
                  ) -> None:
         
@@ -32,7 +35,8 @@ class MovieGeneratorRngAzToPC:
         self.range_az_encoder:_RadarRangeAzEncoder = range_az_encoder
         self.model_runner:_ModelRunner = model_runner
         self.lidar_pc_polar_decoder:_lidarPCPolarDecoder = lidar_pc_polar_decoder
-        
+        self.lidar_pc_encoder:_Lidar2DPCEncoder = lidar_pc_encoder
+
         self.temp_dir_path = temp_dir_path
         self.temp_file_name = "frame"
 
@@ -143,12 +147,19 @@ class MovieGeneratorRngAzToPC:
 
             #get the adc cube
             adc_cube = self.dataset.get_radar_data(idx=i)
+
+            if _Lidar2DPCEncoder:
+                lidar_pc = self.dataset.get_lidar_point_cloud_raw(idx=i)
+            else:
+                lidar_pc = np.empty(0)
             
             self.plotter.plot_compilation(
                 adc_cube=adc_cube,
                 range_az_encoder=self.range_az_encoder,
                 model_runner=self.model_runner,
                 lidar_pc_polar_decoder=self.lidar_pc_polar_decoder,
+                lidar_pc=lidar_pc,
+                lidar_pc_encoder=self.lidar_pc_encoder,
                 axs=self.axs,
                 show=False
             )

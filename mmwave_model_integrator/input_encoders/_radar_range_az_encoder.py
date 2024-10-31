@@ -4,6 +4,7 @@ from mmwave_radar_processing.config_managers.cfgManager import ConfigManager
 from mmwave_radar_processing.processors.virtual_array_reformater import VirtualArrayReformatter
 from mmwave_radar_processing.processors.range_azmith_resp import RangeAzimuthProcessor
 
+from mmwave_model_integrator.transforms import coordinate_transforms
 
 class _RadarRangeAzEncoder:
     """Encoder specifically designed to work with raw radar data
@@ -92,36 +93,3 @@ class _RadarRangeAzEncoder:
         """
 
         pass
-
-    def _convert_cartesian_to_spherical(self,points_cart:np.ndarray):
-        """Convert an array of points stored as (x,y,z) to (range,azimuth, elevation).
-        Note that azimuth = 0 degrees for points on the positive x-axis
-
-        Args:
-            points_cart (np.ndarray): Nx3 matrix of points in cartesian (x,y,z)
-
-        Returns:
-            (np.ndarray): Nx3 matrix of points in spherical (range, azimuth, elevation) in radians
-        """
-        ranges = np.sqrt(points_cart[:, 0]**2 + points_cart[:, 1]**2 + points_cart[:, 2]**2)
-        azimuths = np.arctan2(points_cart[:, 1], points_cart[:, 0])
-        elevations = np.arccos(points_cart[:, 2] / ranges)
-
-        return  np.column_stack((ranges,azimuths,elevations))
-        
-    def _convert_spherical_to_cartesian(self,points_spherical:np.ndarray):
-        """Convert an array of points stored as (range, azimuth, elevation) to (x,y,z)
-
-        Args:
-            points_spherical (np.ndarray): Nx3 matrix of points in spherical (range,azimuth, elevation)
-
-        Returns:
-            (np.ndarray): Nx3 matrix of  points in cartesian (x,y,z)
-        """
-
-        x = points_spherical[:,0] * np.sin(points_spherical[:,2]) * np.cos(points_spherical[:,1])
-        y = points_spherical[:,0] * np.sin(points_spherical[:,2]) * np.sin(points_spherical[:,1])
-        z = points_spherical[:,0] * np.cos(points_spherical[:,2])
-
-
-        return np.column_stack((x,y,z))
