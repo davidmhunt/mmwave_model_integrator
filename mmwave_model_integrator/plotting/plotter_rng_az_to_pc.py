@@ -5,7 +5,7 @@ from mmwave_radar_processing.config_managers.cfgManager import ConfigManager
 from mmwave_model_integrator.input_encoders._radar_range_az_encoder import _RadarRangeAzEncoder
 from mmwave_model_integrator.decoders._lidar_pc_polar_decoder import _lidarPCPolarDecoder
 from mmwave_model_integrator.model_runner._model_runner import _ModelRunner
-from mmwave_model_integrator.output_encoders._lidar_2D_pc_encoder import _Lidar2DPCEncoder
+from mmwave_model_integrator.ground_truth_encoders._gt_encoder_lidar2D import _GTEncoderLidar2D
 from mmwave_model_integrator.transforms.coordinate_transforms import polar_to_cartesian
 
 
@@ -21,7 +21,11 @@ class PlotterRngAzToPC:
         self.plot_x_max = 10
         self.plot_y_max = 20
         self.marker_size = 10
+        self.line_width = 3
 
+    ####################################################################
+    #Plotting radar images/responses
+    ####################################################################
     def plot_range_az_resp_cart(
         self,
         resp:np.ndarray,
@@ -118,6 +122,9 @@ class PlotterRngAzToPC:
         if show:
             plt.show()
 
+    ####################################################################
+    #Plotting model predictions/ground truth information
+    ####################################################################
     def plot_model_output_polar_grid(
         self,
         output_grid:np.ndarray,
@@ -230,6 +237,9 @@ class PlotterRngAzToPC:
         if show:
             plt.show()
 
+    ####################################################################
+    #Plotting compilations of data
+    ####################################################################
     def plot_compilation(
             self,
             adc_cube:np.ndarray,
@@ -237,7 +247,7 @@ class PlotterRngAzToPC:
             model_runner:_ModelRunner=None,
             lidar_pc_polar_decoder:_lidarPCPolarDecoder=None,
             lidar_pc:np.ndarray = np.empty(0),
-            lidar_pc_encoder:_Lidar2DPCEncoder=None,
+            lidar_pc_encoder:_GTEncoderLidar2D=None,
             axs:plt.Axes=[],
             show=False
     ):
@@ -341,4 +351,90 @@ class PlotterRngAzToPC:
             pass
 
         if show:
+            plt.show()
+    
+    ####################################################################
+    #Plotting analysis results
+    ####################################################################
+    def _plot_cdf(
+            self,
+            distances:np.ndarray,
+            label:str,
+            show=True,
+            percentile = 0.95,
+            ax:plt.Axes = None):
+
+        if not ax:
+            fig = plt.figure(figsize=(3,3))
+            ax = fig.add_subplot()
+
+        sorted_data = np.sort(distances)
+        p = 1. * np.arange(len(sorted_data)) / float(len(sorted_data) - 1)
+
+        #compute the index of the percentile
+        idx = (np.abs(p - percentile)).argmin()
+
+        plt.plot(sorted_data[:idx],p[:idx],
+                 label=label,
+                 linewidth=self.line_width)
+
+        ax.set_xlabel('Error (m)',fontsize=self.font_size_axis_labels)
+        ax.set_ylabel('CDF',fontsize=self.font_size_axis_labels)
+        ax.set_title("Error Comparison",fontsize=self.font_size_title)
+        ax.set_xlim((0,5))
+
+        if show:
+            plt.grid()
+            plt.legend()
+            plt.show()
+
+    def plot_distance_metrics_cdfs(
+            self,
+            chamfer_distances:np.ndarray=np.empty(0),
+            hausdorf_distances:np.ndarray=np.empty(0),
+            chamfer_distances_radarHD:np.ndarray=np.empty(0),
+            modified_hausdorf_distances_radarHD:np.ndarray=np.empty(0)
+        ):
+        
+            fig = plt.figure(figsize=(5,5))
+            ax = fig.add_subplot()
+
+            if chamfer_distances.shape[0] > 0:
+                self._plot_cdf(
+                    distances=chamfer_distances,
+                    label="Chamfer Distance",
+                    show=False,
+                    percentile=1.0,
+                    ax = ax
+                )
+
+            if hausdorf_distances.shape[0] > 0:
+                self._plot_cdf(
+                distances=hausdorf_distances,
+                label="Hausdorf Distance",
+                show=False,
+                percentile=1.0,
+                ax = ax
+            )
+
+            if chamfer_distances_radarHD.shape[0] > 0:
+                self._plot_cdf(
+                    distances=chamfer_distances_radarHD,
+                    label="Chamfer Distance (radarHD)",
+                    show=False,
+                    percentile=1.0,
+                    ax = ax
+                )
+            
+            if modified_hausdorf_distances_radarHD.shape[0] > 0:
+                self._plot_cdf(
+                    distances=modified_hausdorf_distances_radarHD,
+                    label="Modified Hausdorff Distance (radarHD)",
+                    show=False,
+                    percentile=1.0,
+                    ax = ax
+                )
+
+            plt.grid()
+            plt.legend()
             plt.show()

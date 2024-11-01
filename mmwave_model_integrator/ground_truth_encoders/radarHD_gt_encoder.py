@@ -1,16 +1,20 @@
 import numpy as np
 
-from mmwave_model_integrator.output_encoders._lidar_2D_pc_encoder import _Lidar2DPCEncoder
+from mmwave_model_integrator.ground_truth_encoders._gt_encoder_lidar2D import _GTEncoderLidar2D
 from mmwave_model_integrator.transforms.coordinate_transforms import cartesian_to_spherical,polar_to_cartesian
 
-class RadCloudOutputEncoder(_Lidar2DPCEncoder):
+class RaadarHDGTEncoder(_GTEncoderLidar2D):
 
     def __init__(
             self,
-            max_range_m:float = 8.56,
-            num_range_bins:int = 64,
-            angle_range_rad:list=[-np.pi/2 - 0.87,-np.pi/2 + 0.87],
-            num_angle_bins:int = 48,
+            max_range_m:float = 10.8,
+            num_range_bins:int = 256,
+            angle_range_rad:list=[np.deg2rad(-90),np.deg2rad(90)],
+            num_angle_bins:int = 512,
+            x_max:float = 10,
+            y_max:float = 10,
+            z_min:float = -0.2, #radarHD originally -0.3
+            z_max:float = 0.3,
             num_previous_frames=0
     ):
         
@@ -21,6 +25,11 @@ class RadCloudOutputEncoder(_Lidar2DPCEncoder):
         self.num_angle_bins:int = num_angle_bins
 
         self.num_previous_frames:int = num_previous_frames
+
+        self.x_max:float = x_max
+        self.y_max:float = y_max
+        self.z_min:float = z_min
+        self.z_max:float = z_max
 
         super().__init__()
     
@@ -42,8 +51,6 @@ class RadCloudOutputEncoder(_Lidar2DPCEncoder):
 
         return
 
-
-
     def encode(self, lidar_pc: np.ndarray) -> np.ndarray:
         """Encodes data for the radcloud model
 
@@ -54,19 +61,29 @@ class RadCloudOutputEncoder(_Lidar2DPCEncoder):
             np.ndarray: Quantized grid as the ground truth output of the model
         """
 
-        #remove the ground plane
-        pc = self._remove_ground_plane(lidar_pc)
+        #filter in cartesian
+        pc = self._filter_in_cartesian(lidar_pc)
 
         #convert points to spherical
         pc = cartesian_to_spherical(pc)
 
-        #filter ranges and azimuths of detections
-        pc = self._filter_ranges_and_azimuths(pc)
-
         #convert the points to a quantized grid
-        grid = self.points_polar_to_grid(pc)
+        grid = self.points_polar_to_grid(pc[:,])
 
         #perform BCC to remove miscellaneous smaller detections
         grid = self._apply_binary_connected_component_analysis_to_grid(grid)
 
         return grid
+    
+    ####################################################################
+    #RadarHD Point Cloud Processing helper functions
+    ####################################################################
+    def _filter_in_cartesian(self, lidar_pc:np.ndarray) ->np.ndarray:
+
+        mask = (lidar_pc[:,0] >= 0) * (lidar_pc[:,0] <= self.x_max) & \
+                (lidar_pc[:,1] >= -self.y_max) * (lidar_pc[:,0] <= self.y_max) & \
+                (lidar_pc[:,2] >= self.z_min) * (lidar_pc[:,2] <= self.z_max)
+        
+        return lidar_pc[mask,0:3]
+
+

@@ -1,13 +1,16 @@
 import numpy as np
 from scipy.spatial.distance import cdist
 from tqdm import tqdm
+import pandas as pd
+from IPython.display import display
+
 
 from cpsl_datasets.cpsl_ds import CpslDS
 from mmwave_model_integrator.plotting.plotter_rng_az_to_pc import PlotterRngAzToPC
 from mmwave_model_integrator.input_encoders._radar_range_az_encoder import _RadarRangeAzEncoder
 from mmwave_model_integrator.decoders._lidar_pc_polar_decoder import _lidarPCPolarDecoder
 from mmwave_model_integrator.model_runner._model_runner import _ModelRunner
-from mmwave_model_integrator.output_encoders._lidar_2D_pc_encoder import _Lidar2DPCEncoder
+from mmwave_model_integrator.ground_truth_encoders._gt_encoder_lidar2D import _GTEncoderLidar2D
 from mmwave_model_integrator.transforms.coordinate_transforms import polar_to_cartesian
 
 class AnalyzerRngAzToPC:
@@ -17,14 +20,14 @@ class AnalyzerRngAzToPC:
                  input_encoder:_RadarRangeAzEncoder,
                  model_runner:_ModelRunner,
                  prediction_decoder:_lidarPCPolarDecoder,
-                 ground_truth_encoder: _Lidar2DPCEncoder,
+                 ground_truth_encoder: _GTEncoderLidar2D,
                  temp_dir_path="~/Downloads/odometry_temp") -> None:
         
         self.dataset:CpslDS = cpsl_dataset
         self.input_encoder:_RadarRangeAzEncoder = input_encoder
         self.model_runner:_ModelRunner = model_runner
         self.prediction_decoder:_lidarPCPolarDecoder = prediction_decoder
-        self.ground_truth_encoder:_Lidar2DPCEncoder = ground_truth_encoder
+        self.ground_truth_encoder:_GTEncoderLidar2D = ground_truth_encoder
         
         self.temp_dir_path = temp_dir_path
         self.temp_file_name = "frame"
@@ -39,7 +42,82 @@ class AnalyzerRngAzToPC:
 
     def reset(self):
         pass
-    
+
+    ####################################################################
+    #Compute and show summary statistics
+    ####################################################################
+    def show_all_summary_statistics(self,
+                                chamfer_distances:np.ndarray=np.empty(0),
+                                hausdorff_distances:np.ndarray=np.empty(0),
+                                chamfer_distances_radarHD:np.ndarray=np.empty(0),
+                                modified_hausdorff_distances_radarHD:np.ndarray=np.empty(0)):
+        """Display a set of summary statistics in a table
+
+        Args:
+            chamfer_distances (np.ndarray): _description_
+            hausdorff_distances (np.ndarray): _description_
+            chamfer_distances_radarHD (np.ndarray, optional): _description_. Defaults to None.
+            modified_hausdorff_distances_radarHD (np.ndarray, optional): _description_. Defaults to None.
+        """
+        #compute stats for hausdorff
+        hausdorff_mean = np.mean(hausdorff_distances)
+        hausdorff_median = np.median(hausdorff_distances)
+        hausdorff_tail_90_percent = self._get_percentile(hausdorff_distances,0.90)
+        
+        #compute stats for modified hausdorff (radarHD)
+        hausdorff_radar_HD_mean = \
+            np.mean(modified_hausdorff_distances_radarHD)
+        hausdorff_radar_HD_median = \
+            np.median(modified_hausdorff_distances_radarHD)
+        hausdorff_radar_HD_tail_90_percent = \
+            self._get_percentile(modified_hausdorff_distances_radarHD, 0.90)
+
+        #compute stats for chamfer
+        chamfer_mean = np.mean(chamfer_distances)
+        chamfer_median = np.median(chamfer_distances)
+        chamfer_tail_90_percent = self._get_percentile(chamfer_distances,0.90)
+        
+        #compute stats for chamfer (RadarHD)
+        chamfer_radarHD_mean = \
+            np.mean(chamfer_distances_radarHD)
+        chamfer_radarHD_median = \
+            np.median(chamfer_distances_radarHD)
+        chamfer_radarHD_tail_90_percent = \
+            self._get_percentile(chamfer_distances_radarHD, 0.90)
+        
+        #generate and display table
+        dict = {
+            'Metric': ["Mean","Median","90th percentile"],
+            'Hausdorff':[
+                hausdorff_mean,
+                hausdorff_median,
+                hausdorff_tail_90_percent],
+            'Modified Hausdorff (radarHD)':[
+                hausdorff_radar_HD_mean,
+                hausdorff_radar_HD_median,
+                hausdorff_radar_HD_tail_90_percent],
+            'Chamfer':[
+                chamfer_mean,
+                chamfer_median,
+                chamfer_tail_90_percent],
+            'Chamfer (radarHD)':[
+                chamfer_radarHD_mean,
+                chamfer_radarHD_median,
+                chamfer_radarHD_tail_90_percent]
+        }
+
+        df = pd.DataFrame(dict)
+        display(df)
+
+    def _get_percentile(self,distances:np.ndarray, percentile:float):
+
+        sorted_data = np.sort(distances)
+        p = 1. * np.arange(len(sorted_data)) / float(len(sorted_data) - 1)
+
+        #compute the index of the percentile
+        idx = (np.abs(p - percentile)).argmin()
+
+        return sorted_data[idx]
     ####################################################################
     #Computing distance metrics across an entire dataset
     ####################################################################
