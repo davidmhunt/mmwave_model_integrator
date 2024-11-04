@@ -77,7 +77,7 @@ class _RadarRangeAzEncoder:
     def reset_history(self):
         """Implemented by child class to reset encoder history (if applicable)
         """
-
+        self.full_encoding_ready = False
         return
 
     def get_rng_az_resp_from_encoding(self,rng_az_resp:np.ndarray)->np.ndarray:

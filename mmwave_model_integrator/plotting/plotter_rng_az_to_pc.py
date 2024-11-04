@@ -243,11 +243,11 @@ class PlotterRngAzToPC:
     def plot_compilation(
             self,
             adc_cube:np.ndarray,
-            range_az_encoder:_RadarRangeAzEncoder,
+            input_encoder:_RadarRangeAzEncoder,
             model_runner:_ModelRunner=None,
-            lidar_pc_polar_decoder:_lidarPCPolarDecoder=None,
+            prediction_decoder:_lidarPCPolarDecoder=None,
             lidar_pc:np.ndarray = np.empty(0),
-            lidar_pc_encoder:_GTEncoderLidar2D=None,
+            ground_truth_encoder:_GTEncoderLidar2D=None,
             axs:plt.Axes=[],
             show=False
     ):
@@ -273,15 +273,15 @@ class PlotterRngAzToPC:
             fig.subplots_adjust(wspace=0.3,hspace=0.30)
         
         #plot range az response
-        rng_az_resp_encoded = range_az_encoder.encode(adc_cube)
+        rng_az_resp_encoded = input_encoder.encode(adc_cube)
 
-        rng_az_to_plot = range_az_encoder.get_rng_az_resp_from_encoding(
+        rng_az_to_plot = input_encoder.get_rng_az_resp_from_encoding(
             rng_az_resp=rng_az_resp_encoded
         )
 
         self.plot_range_az_resp_cart(
             resp=rng_az_to_plot,
-            range_az_encoder=range_az_encoder,
+            range_az_encoder=input_encoder,
             cmap="gray",
             ax=axs[0,0],
             show=False
@@ -289,23 +289,23 @@ class PlotterRngAzToPC:
 
         self.plot_range_az_resp_polar(
             resp=rng_az_to_plot,
-            range_az_encoder=range_az_encoder,
+            range_az_encoder=input_encoder,
             cmap="gray",
             ax=axs[1,0],
             show=False
         )
 
-        if range_az_encoder.full_encoding_ready \
+        if input_encoder.full_encoding_ready \
             and model_runner \
-            and lidar_pc_polar_decoder:
+            and prediction_decoder:
 
             #plot the prediction
             pred = model_runner.make_prediction(input=rng_az_resp_encoded)
 
             self.plot_model_output_polar_grid(
                 output_grid=pred,
-                range_bins_m=lidar_pc_polar_decoder.range_bins,
-                angle_bins_rad=lidar_pc_polar_decoder.angle_bins,
+                range_bins_m=prediction_decoder.range_bins,
+                angle_bins_rad=prediction_decoder.angle_bins,
                 cmap="binary",
                 title="Model Prediction (Polar)",
                 ax=axs[1,1],
@@ -313,26 +313,26 @@ class PlotterRngAzToPC:
             )
 
             #plot the point cloud in cartesian
-            pc = polar_to_cartesian(lidar_pc_polar_decoder.decode(pred))
+            pc = polar_to_cartesian(prediction_decoder.decode(pred))
 
             self.plot_output_pc_cartesian(
                 point_cloud=pc,
-                range_bins_m=lidar_pc_polar_decoder.range_bins,
+                range_bins_m=prediction_decoder.range_bins,
                 ax=axs[0,1],
                 title="Generated Point Cloud \n (Cart.)",
                 show=False
             )
         
-        if lidar_pc_encoder and lidar_pc.shape[0] > 0:
+        if ground_truth_encoder and lidar_pc.shape[0] > 0:
 
-            gt_grid = lidar_pc_encoder.encode(lidar_pc)
-            quantized_pc = lidar_pc_encoder.grid_to_polar_points(gt_grid)
+            gt_grid = ground_truth_encoder.encode(lidar_pc)
+            quantized_pc = ground_truth_encoder.grid_to_polar_points(gt_grid)
             quantized_pc = polar_to_cartesian(quantized_pc)
 
             self.plot_model_output_polar_grid(
                 output_grid=gt_grid,
-                range_bins_m=lidar_pc_encoder.range_bins_m,
-                angle_bins_rad=lidar_pc_encoder.angle_bins_rad,
+                range_bins_m=ground_truth_encoder.range_bins_m,
+                angle_bins_rad=ground_truth_encoder.angle_bins_rad,
                 cmap="binary",
                 title="Ground Truth (Polar)",
                 ax=axs[1,2],
@@ -341,13 +341,13 @@ class PlotterRngAzToPC:
 
             self.plot_output_pc_cartesian(
                 point_cloud=quantized_pc,
-                range_bins_m=lidar_pc_encoder.range_bins_m,
+                range_bins_m=ground_truth_encoder.range_bins_m,
                 ax=axs[0,2],
                 title="Ground Truth Point Cloud \n (Cart.)",
                 show=False
             )
 
-        if lidar_pc_encoder and (lidar_pc.shape[0]>0):
+        if ground_truth_encoder and (lidar_pc.shape[0]>0):
             pass
 
         if show:

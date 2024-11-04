@@ -124,27 +124,50 @@ class AnalyzerRngAzToPC:
     
     def compute_all_distance_metrics(self, save_to_file=False,file_name = "trained"):
 
+        #prime the dataset to ensure that the encoders and decoders have sufficient data 
+        #with an encoding ready to go
+        start_idx=0
+        self.input_encoder.reset_history()
+
+        while (not self.input_encoder.full_encoding_ready) or \
+            (not self.ground_truth_encoder.full_encoding_ready):
+
+            #get the radar data
+            adc_cube = self.dataset.get_radar_data(idx=start_idx)
+            encoded_data = self.input_encoder.encode(adc_cube)
+
+            lidar_pc = self.dataset.get_lidar_point_cloud_raw(idx=start_idx)
+            grid = self.ground_truth_encoder.encode(lidar_pc)
+
+            start_idx += 1
+        
         #initialize arrays to store the distributions in (alternative metrics)
-        chamfer_distances = np.zeros((self.dataset.num_frames))
-        hausdorff_distances = np.zeros((self.dataset.num_frames))
+        chamfer_distances = np.zeros((self.dataset.num_frames - start_idx))
+        hausdorff_distances = np.zeros((self.dataset.num_frames - start_idx))
 
         #initialize arrays to store the distributions in (radCloud metrics)
-        chamfer_distances_radarHD = np.zeros((self.dataset.num_frames))
-        hausdorff_distances_radarHD = np.zeros((self.dataset.num_frames))
+        chamfer_distances_radarHD = np.zeros((self.dataset.num_frames - start_idx))
+        hausdorff_distances_radarHD = np.zeros((self.dataset.num_frames - start_idx))
 
         #reset failed sample tracking
         self.num_failed_predictions = 0
 
         #compute the distances for each of the arrays
         print("Analyzer.compute_all_distance_metrics: Computing distance metrics")
-        for i in tqdm(range(self.dataset.num_frames)):
-            chamfer_distances[i],hausdorff_distances[i],chamfer_distances_radarHD[i],hausdorff_distances_radarHD[i] = \
-                self._compute_distance_metrics(sample_idx=i,print_result=False)
+        for sample_idx in tqdm(range(start_idx,self.dataset.num_frames)):
+
+            save_idx = sample_idx - start_idx
+
+            chamfer_distances[save_idx], \
+            hausdorff_distances[save_idx], \
+            chamfer_distances_radarHD[save_idx], \
+            hausdorff_distances_radarHD[save_idx] = \
+                self._compute_distance_metrics(sample_idx=sample_idx,print_result=False)
         
         print("Analyzer.compute_all_distance_metrics: number failed predictoins {} of {} ({}%)".format(
             self.num_failed_predictions,
-            self.dataset.num_frames,
-            float(self.num_failed_predictions) / float(self.dataset.num_frames)
+            self.dataset.num_frames - start_idx,
+            float(self.num_failed_predictions) / float(self.dataset.num_frames - start_idx)
         ))
         
         #save metrics to .npy file if set to true
@@ -221,7 +244,7 @@ class AnalyzerRngAzToPC:
         )
 
         #compute the ground truth point cloud
-        lidar_pc = self.dataset.get_lidar_point_cloud_raw(idx=0)
+        lidar_pc = self.dataset.get_lidar_point_cloud_raw(idx=sample_idx)
         grid = self.ground_truth_encoder.encode(lidar_pc)
         quantized_pc = self.ground_truth_encoder.grid_to_polar_points(grid)
         ground_truth = polar_to_cartesian(quantized_pc)

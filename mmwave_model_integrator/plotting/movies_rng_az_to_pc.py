@@ -23,19 +23,19 @@ class MovieGeneratorRngAzToPC:
     def __init__(self,
                  cpsl_dataset:CpslDS,
                  plotter:PlotterRngAzToPC,
-                 range_az_encoder:_RadarRangeAzEncoder,
+                 input_encoder:_RadarRangeAzEncoder,
                  model_runner:_ModelRunner=None,
-                 lidar_pc_polar_decoder:_lidarPCPolarDecoder=None,
-                 lidar_pc_encoder:_GTEncoderLidar2D=None,
+                 prediction_decoder:_lidarPCPolarDecoder=None,
+                 ground_truth_encoder:_GTEncoderLidar2D=None,
                  temp_dir_path="~/Downloads/odometry_temp",
                  ) -> None:
         
         self.dataset:CpslDS = cpsl_dataset
         self.plotter:PlotterRngAzToPC = plotter
-        self.range_az_encoder:_RadarRangeAzEncoder = range_az_encoder
+        self.input_encoder:_RadarRangeAzEncoder = input_encoder
         self.model_runner:_ModelRunner = model_runner
-        self.lidar_pc_polar_decoder:_lidarPCPolarDecoder = lidar_pc_polar_decoder
-        self.lidar_pc_encoder:_GTEncoderLidar2D = lidar_pc_encoder
+        self.prediction_decoder:_lidarPCPolarDecoder = prediction_decoder
+        self.ground_truth_encoder:_GTEncoderLidar2D = ground_truth_encoder
 
         self.temp_dir_path = temp_dir_path
         self.temp_file_name = "frame"
@@ -143,23 +143,49 @@ class MovieGeneratorRngAzToPC:
     def generate_movie_frames(
             self):
 
-        for i in tqdm.tqdm(range(self.dataset.num_frames)):
+        #prime the dataset to ensure that the encoders and decoders have sufficient data 
+        #with an encoding ready to go
+        start_idx=0
+        self.input_encoder.reset_history()
+
+        if self.ground_truth_encoder:
+            while (not self.input_encoder.full_encoding_ready) or \
+                (not self.ground_truth_encoder.full_encoding_ready):
+
+                #get the radar data
+                adc_cube = self.dataset.get_radar_data(idx=start_idx)
+                encoded_data = self.input_encoder.encode(adc_cube)
+
+                lidar_pc = self.dataset.get_lidar_point_cloud_raw(idx=start_idx)
+                grid = self.ground_truth_encoder.encode(lidar_pc)
+
+                start_idx += 1
+        else:
+            while (not self.input_encoder.full_encoding_ready):
+
+                #get the radar data
+                adc_cube = self.dataset.get_radar_data(idx=start_idx)
+                encoded_data = self.input_encoder.encode(adc_cube)
+
+                start_idx += 1
+        
+        for i in tqdm.tqdm(range(start_idx,self.dataset.num_frames)):
 
             #get the adc cube
             adc_cube = self.dataset.get_radar_data(idx=i)
 
-            if _GTEncoderLidar2D:
+            if self.ground_truth_encoder:
                 lidar_pc = self.dataset.get_lidar_point_cloud_raw(idx=i)
             else:
                 lidar_pc = np.empty(0)
             
             self.plotter.plot_compilation(
                 adc_cube=adc_cube,
-                range_az_encoder=self.range_az_encoder,
+                input_encoder=self.input_encoder,
                 model_runner=self.model_runner,
-                lidar_pc_polar_decoder=self.lidar_pc_polar_decoder,
+                prediction_decoder=self.prediction_decoder,
                 lidar_pc=lidar_pc,
-                lidar_pc_encoder=self.lidar_pc_encoder,
+                ground_truth_encoder=self.ground_truth_encoder,
                 axs=self.axs,
                 show=False
             )

@@ -70,6 +70,9 @@ class RadCloudGTEncoder(_GTEncoderLidar2D):
         #perform BCC to remove miscellaneous smaller detections
         grid = self._apply_binary_connected_component_analysis_to_grid(grid)
 
+        #specify full encoding ready
+        self.full_encoding_ready = True
+
         return grid
     
     ####################################################################

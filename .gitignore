@@ -1,3 +1,4 @@
 .env
 *.pyc
 *.mp4
+*.npy

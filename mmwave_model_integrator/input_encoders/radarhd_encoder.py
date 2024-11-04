@@ -156,6 +156,7 @@ class RadarHDEncoder(_RadarRangeAzEncoder):
         )
         self.num_frames_encoded = 0
 
+        self.full_encoding_ready = False
         return
     
     def get_rng_az_resp_from_encoding(self, rng_az_resp: np.ndarray) -> np.ndarray:
