@@ -60,10 +60,14 @@ class RadCloudRunner(_ModelRunner):
             #since only one sample, need to unsqueeze
             x = torch.unsqueeze(x,0)
             #send x to device
+
+            print(x.shape)
             x = x.to(self.device)
+
 
             #get the prediction and apply sigmoid
             pred = self.model(x).squeeze()
+
             pred = torch.sigmoid(pred)
             pred = pred.cpu().numpy()
 
