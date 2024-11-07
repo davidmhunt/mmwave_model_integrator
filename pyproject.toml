@@ -22,6 +22,7 @@ addict = "^2.4.0"
 pandas = "^2.1.4"
 opencv-python = "^4.9.0.80"
 poetry-dotenv-plugin = "^0.2.0"
+openvino = "^2024.4.0"
 
 [tool.poetry.group.submodules.dependencies]
 cpsl_datasets = {path="./submodules/cpsl_datasets/", develop = true}
