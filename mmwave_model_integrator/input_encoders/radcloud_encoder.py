@@ -105,10 +105,10 @@ class RadCloudEncoder(_RadarRangeAzEncoder):
 
         return self.encoded_data
     
-    def reset_history(self):
+    def reset(self):
         """No history, method isn't used for this encoder
         """
-        return super().reset_history()
+        return super().reset()
     
     def get_rng_az_resp_from_encoding(self, rng_az_resp: np.ndarray) -> np.ndarray:
         """Given an encoded range azimuth response, return a single

@@ -2,8 +2,9 @@ import numpy as np
 import cv2
 
 from mmwave_model_integrator.transforms.coordinate_transforms import cartesian_to_spherical,spherical_to_cartesian
+from mmwave_model_integrator.ground_truth_encoders._gt_encoder import _GTEncoder
 
-class _GTEncoderLidar2D:
+class _GTEncoderLidar2D(_GTEncoder):
     """Encoder specifically designed to encode lidar data into
     the format used to train a model
     """
@@ -26,14 +27,7 @@ class _GTEncoderLidar2D:
         self.encoded_data:np.ndarray = None
         
         #complete the configuration
-        self.configure()
-
-        return
-
-    def configure(self):
-        """Configure the point cloud encoder. Remaining functionality
-        must be implemented by child class to configure its modules.
-        """
+        super().__init__()
 
         return
 
@@ -45,8 +39,8 @@ class _GTEncoderLidar2D:
             lidar_pc (np.ndarray): N x 3 3D point cloud of lidar data
 
         Returns:
-            np.ndarray: np.ndarray consisting of data to be input
-                into the model
+            np.ndarray: np.ndarray consisting of data to be output
+                from the model
         """
         pass
     

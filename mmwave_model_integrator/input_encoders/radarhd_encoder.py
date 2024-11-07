@@ -145,7 +145,7 @@ class RadarHDEncoder(_RadarRangeAzEncoder):
 
         return frame_image_polar
     
-    def reset_history(self):
+    def reset(self):
         """Reset the encoded data and the tracking of the number of encoded frames
         """
         self.encoded_data= np.zeros(
