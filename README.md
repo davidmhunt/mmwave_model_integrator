@@ -129,10 +129,12 @@ In order to use any datasets in your computer's directory, you must first create
 2. Inside the .env file, add these variables
 ```
 DATASET_DIRECTORY=/data/radnav
-CONFIG_DIRECTORY=/home/USERNAME/Documents/mmwave_model_integrator/submodules/mmwave_radar_processing/configs
-MOVIE_TEMP_DIRECTORY=/home/USERNAME/Downloads/radnav_temp_dir
-RADCLOUD_MODEL_STATE_DICT_PATH=/home/USERNAME/Documents/mmwave_model_integrator/submodules/radcloud/working_dir/RadCloud_40_chirps_10e.pth
+CONFIG_DIRECTORY=/home/david/Documents/mmwave_model_integrator/submodules/mmwave_radar_processing/configs
+MOVIE_TEMP_DIRECTORY=/home/david/Downloads/radnav_temp_dir
+RADCLOUD_MODEL_STATE_DICT_PATH=/home/david/Documents/mmwave_model_integrator/submodules/radcloud/working_dir/RadCloud_40_chirps_10e.pth
 RADARHD_MODEL_STATE_DICT_PATH=/data/RadarHD/radarhd_dict.pt_gen
+GENERATED_DATASETS_PATH=/home/david/Downloads/generated_datasets
+MODEL_TRAINING_DATASET_PATH=/data/RadCloud_public
 ```
 3. Replace the example text with the path to your directory
 
