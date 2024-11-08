@@ -127,7 +127,7 @@ class AnalyzerRngAzToPC:
         #prime the dataset to ensure that the encoders and decoders have sufficient data 
         #with an encoding ready to go
         start_idx=0
-        self.input_encoder.reset_history()
+        self.input_encoder.reset()
 
         while (not self.input_encoder.full_encoding_ready) or \
             (not self.ground_truth_encoder.full_encoding_ready):

@@ -3,19 +3,16 @@ import numpy as np
 from mmwave_radar_processing.config_managers.cfgManager import ConfigManager
 from mmwave_radar_processing.processors.virtual_array_reformater import VirtualArrayReformatter
 from mmwave_radar_processing.processors.range_azmith_resp import RangeAzimuthProcessor
+from mmwave_model_integrator.input_encoders._input_encoder import _InputEncoder
 
 from mmwave_model_integrator.transforms import coordinate_transforms
 
-class _RadarRangeAzEncoder:
+class _RadarRangeAzEncoder(_InputEncoder):
     """Encoder specifically designed to work with raw radar data
     """
     def __init__(self,config_manager:ConfigManager) -> None:
         
         self.config_manager:ConfigManager = config_manager
-
-        #flag to note whether a full encoding is ready or not
-        #(for encoders that encode a series of frames)
-        self.full_encoding_ready = False
         
         #mesh grids for polar and cartesian plotting - SET BY CHILD CLASS
         self.thetas:np.ndarray = None
@@ -38,7 +35,7 @@ class _RadarRangeAzEncoder:
         self.encoded_data:np.ndarray = None
         
         #complete the configuration
-        self.configure()
+        super().__init__()
 
         return
 
@@ -74,7 +71,7 @@ class _RadarRangeAzEncoder:
         """
         pass
 
-    def reset_history(self):
+    def reset(self):
         """Implemented by child class to reset encoder history (if applicable)
         """
         self.full_encoding_ready = False
