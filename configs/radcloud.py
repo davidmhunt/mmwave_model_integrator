@@ -30,7 +30,7 @@ trainer = dict(
     output_directory=generated_dataset["ground_truth_encoding_folder"],
     val_split = 0.15,
     working_dir = "working_dir",
-    save_name = "trained",
+    save_name = "RadCloud_40_chirps_10e",
     input_transforms = [
         dict(
             type='RandomRadarNoise',

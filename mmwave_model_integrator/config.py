@@ -12,14 +12,26 @@ class Config:
         
         # If there is a _base_ key, load the base configurations
         if '_base_' in globals():
-            base_files = globals()['_base_']
+            base_files = globals().pop('_base_')
             for base_file in base_files:
+                dir_name = os.path.dirname(config_path)
                 self.load_config(os.path.join(os.path.dirname(config_path), base_file))
         
         # Initialize class attributes using setattr
         for key, value in globals().items():
-            if not key.startswith('__') and not callable(value) and key != '_base':
-                setattr(self, key, value)
+            if not key.startswith('__') and not callable(value) and key != '_base_':
+                if key not in self.__dict__.items() or not isinstance(value,dict):
+                    setattr(self, key, value)
+                else:
+                    self.recursive_update(key,value)
+
+    def recursive_update(self, base, new):
+        # Update the base dictionary with values from the new dictionary
+        for key, value in new.items():
+            if isinstance(value, dict) and key in base and isinstance(base[key], dict):
+                self.recursive_update(base[key], value)
+            else:
+                base[key] = value
 
     def print_config(self, config=None, indent=0):
         # Print the configuration in a nice format with indentation for nested dictionaries
