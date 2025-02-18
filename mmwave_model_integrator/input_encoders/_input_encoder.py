@@ -25,7 +25,7 @@ class _InputEncoder:
         self.full_encoding_ready = False
         return
 
-    def encode(self,adc_data_cube:np.ndarray)->np.ndarray:
+    def encode(self,input_data:np.ndarray)->np.ndarray:
         """Implemented by child class to encode data for a specific model
         Args:
             adc_data_cube (np.ndarray): (rx antennas) x (adc samples) x
@@ -36,4 +36,4 @@ class _InputEncoder:
                 into the model
         """
         
-        pass
+        return

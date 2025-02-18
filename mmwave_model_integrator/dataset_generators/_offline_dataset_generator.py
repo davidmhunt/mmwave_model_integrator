@@ -9,8 +9,9 @@ from mmwave_model_integrator.input_encoders._input_encoder import _InputEncoder
 from mmwave_model_integrator.ground_truth_encoders._gt_encoder import _GTEncoder
 from cpsl_datasets.cpsl_ds import CpslDS
 
-class _DatasetGenerator:
-    """Parent class for generating datasets to train models using the mmwave model integrator pipeline
+class _OfflineDatasetGenerator:
+    """Parent class for generating datasets to train models using the mmwave model 
+    integrator pipeline by looking at a dataset directly (i.e.; in an offline method)
     """
 
     def __init__(

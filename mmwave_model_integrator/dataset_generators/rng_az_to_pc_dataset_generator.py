@@ -1,12 +1,12 @@
 import numpy as np
 
 from cpsl_datasets.cpsl_ds import CpslDS
-from mmwave_model_integrator.dataset_generators._dataset_generator import _DatasetGenerator
+from mmwave_model_integrator.dataset_generators._offline_dataset_generator import _OfflineDatasetGenerator
 from mmwave_model_integrator.ground_truth_encoders._gt_encoder import _GTEncoder
 from mmwave_model_integrator.input_encoders._input_encoder import _InputEncoder
 
 
-class RngAzToPCDatasetGenerator(_DatasetGenerator):
+class RngAzToPCDatasetGenerator(_OfflineDatasetGenerator):
 
     def __init__(
             self, 
