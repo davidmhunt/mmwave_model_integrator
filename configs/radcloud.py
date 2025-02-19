@@ -23,7 +23,31 @@ trainer = dict(
         lr=0.001
     ),
     dataset = dict(
-        type='_BaseTorchDataset'
+        type='_BaseTorchDataset',
+        input_transforms = [
+            dict(
+                type='RandomRadarNoise',
+                noise_level=0.0
+            ),
+            dict(type='ToTensor'),
+            dict(
+                type='Resize',
+                size=(64,48)
+            )
+        ],
+        output_transforms=[
+            dict(type='ToTensor'),
+            dict(
+                type='Resize',
+                size=(64,48)
+            )
+        ]
+    ),
+    data_loader = dict(
+        type='DataLoader',
+        batch_size=256,
+        shuffle=True,
+        num_workers=4
     ),
     dataset_path = generated_dataset["generated_dataset_path"],
     input_directory=generated_dataset["input_encoding_folder"],
@@ -31,28 +55,9 @@ trainer = dict(
     val_split = 0.15,
     working_dir = "working_dir",
     save_name = "RadCloud_40_chirps_10e",
-    input_transforms = [
-        dict(
-            type='RandomRadarNoise',
-            noise_level=0.0
-        ),
-        dict(type='ToTensor'),
-        dict(
-            type='Resize',
-            size=(64,48)
-        )
-    ],
-    output_transforms=[
-        dict(type='ToTensor'),
-        dict(
-            type='Resize',
-            size=(64,48)
-        )
-    ],
     loss_fn = dict(
         type='BCE_DICE_Loss'
     ),
-    batch_size=256,
     epochs = 10,
     pretrained_state_dict_path=None,
     cuda_device="cuda:0",

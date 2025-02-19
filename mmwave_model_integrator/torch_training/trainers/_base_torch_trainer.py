@@ -1,13 +1,9 @@
-from torch.nn import BCEWithLogitsLoss
-from torch.optim import Adam,Optimizer
 from mmwave_model_integrator.torch_training.datasets import _BaseTorchDataset
-from radcloud.datasets.Segmentation_Dataset import SegmentationDataset
 from torch.nn import Module
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
 from torchvision import transforms
-from imutils import paths
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import torch
@@ -19,6 +15,7 @@ import mmwave_model_integrator.torch_training.optimizers as optimizers
 import mmwave_model_integrator.torch_training.transforms as transforms
 import mmwave_model_integrator.torch_training.loss_fns as loss_fns
 import mmwave_model_integrator.torch_training.datasets as datasets
+import mmwave_model_integrator.torch_training.data_loaders as data_loaders
 
 class _BaseTorchTrainer:
 
@@ -26,16 +23,14 @@ class _BaseTorchTrainer:
                  model:dict,
                  optimizer:dict,
                  dataset:dict,
+                 data_loader:dict,
                  dataset_path:str,
                  input_directory:str,
                  output_directory:str,
                  val_split:float,
                  working_dir:str,
                  save_name:str,
-                 input_transforms:list,
-                 output_transforms:list,
                  loss_fn:dict,
-                 batch_size = 64,
                  epochs = 40,
                  pretrained_state_dict_path:str = None,
                  cuda_device:str = "cuda:0",
@@ -57,14 +52,6 @@ class _BaseTorchTrainer:
         self.loss_fn = None
         self._init_loss_fn(loss_fn_config=loss_fn)
 
-        #initialize the transformations
-        self.input_transforms = []
-        self.output_transforms = []
-        self._init_transforms(
-            input_transform_configs=input_transforms,
-            output_transform_configs=output_transforms
-        )
-
         #initialize the dataset paths        
         self.dataset_path = dataset_path
         self.input_directory = input_directory
@@ -76,12 +63,11 @@ class _BaseTorchTrainer:
         self._init_datasets(dataset)
 
         #initialize dataloaders
-        self.batch_size = batch_size
         self.train_data_loader:DataLoader = None
         self.val_data_loader:DataLoader = None
         self.pin_memory = True if self.cuda_device == "cuda" else False 
         #determine if pinning memory during training
-        self._init_data_loaders()
+        self._init_data_loaders(data_loader)
 
         #save the path to the working directory
         self.working_dir = working_dir
@@ -159,28 +145,7 @@ class _BaseTorchTrainer:
         loss_fn_config.pop('type')
         self.loss_fn = loss_fn_class(**loss_fn_config)
 
-    def _init_transforms(
-            self,
-            input_transform_configs:list,
-            output_transform_configs:list):
-        
-        self.input_transforms = []
-        for transform_config in input_transform_configs:
-            transform_class = getattr(transforms,transform_config['type'])
-            transform_config.pop('type')
-            self.input_transforms.append(
-                transform_class(**transform_config)
-            )
-        
-        self.output_transforms = []
-        for transform_config in output_transform_configs:
-            transform_class = getattr(transforms,transform_config['type'])
-            transform_config.pop('type')
-            self.output_transforms.append(
-                transform_class(**transform_config)
-            )
-
-    def _init_datasets(self,dataset):
+    def _init_datasets(self,dataset:dict):
 
         #get a list of the input and output files
         input_files = sorted(os.listdir(os.path.join(self.dataset_path,self.input_directory)))
@@ -202,21 +167,18 @@ class _BaseTorchTrainer:
         
         #get the dataset type
         dataset_class = getattr(datasets,dataset['type'])
+        dataset.pop('type')
 
         #initialize the train/val dataset
-        self.train_dataset = dataset_class(
-            input_paths= train_inputs,
-            output_paths= train_outputs,
-            input_transforms= self.input_transforms,
-            output_transforms= self.output_transforms
-        )
+        train_dataset_config = dataset.copy()
+        train_dataset_config["input_paths"] = train_inputs
+        train_dataset_config["output_paths"] = train_outputs
+        self.train_dataset = dataset_class(**train_dataset_config)
 
-        self.val_dataset = dataset_class(
-            input_paths= val_inputs,
-            output_paths= val_outputs,
-            input_transforms = self.input_transforms,
-            output_transforms=self.output_transforms
-        )
+        val_dataset_config = dataset.copy()
+        val_dataset_config["input_paths"] = val_inputs
+        val_dataset_config["output_paths"] = val_outputs
+        self.val_dataset = dataset_class(**val_dataset_config)
 
         print("ModelTrainer: {} train, {} val samples loaded".format(
             len(self.train_dataset),len(self.val_dataset)
@@ -224,23 +186,19 @@ class _BaseTorchTrainer:
         
         return
     
-    def _init_data_loaders(self):
+    def _init_data_loaders(self,data_loader_config:dict):
 
-        self.train_data_loader = DataLoader(
-            dataset= self.train_dataset,
-            batch_size= self.batch_size,
-            pin_memory= self.pin_memory,
-            shuffle= True,
-            num_workers= os.cpu_count()
-        )
+        data_loader_class = getattr(data_loaders,data_loader_config['type'])
+        data_loader_config.pop('type')
+        data_loader_config['pin_memory'] = self.pin_memory
 
-        self.val_data_loader = DataLoader(
-            dataset= self.val_dataset,
-            batch_size= self.batch_size,
-            pin_memory= self.pin_memory,
-            shuffle= True,
-            num_workers= os.cpu_count()
-        )
+        train_data_loader_config = data_loader_config.copy()
+        train_data_loader_config['dataset'] = self.train_dataset
+        self.train_data_loader = data_loader_class(**train_data_loader_config)
+
+        val_data_loader_config = data_loader_config.copy()
+        val_data_loader_config['dataset'] = self.val_dataset
+        self.val_data_loader = data_loader_class(**val_data_loader_config)
 
     def _check_for_directory(self,path, clear_contents = False):
         """Checks to see if a directory exists, 
@@ -253,10 +211,10 @@ class _BaseTorchTrainer:
         """
 
         if os.path.isdir(path):
-            print("DatasetGenerator._check_for_directory: found directory {}".format(path))
+            print("_BaseTorchTrainer._check_for_directory: found directory {}".format(path))
 
             if clear_contents:
-                print("DatasetGenerator._check_for_directory: clearing contents of {}".format(path))
+                print("_BaseTorchTrainer._check_for_directory: clearing contents of {}".format(path))
 
                 #clear the contents
                 for file in os.listdir(path):
@@ -268,7 +226,7 @@ class _BaseTorchTrainer:
                     except Exception as e:
                         print("Failed to delete {}".format(path))
         else:
-            print("DatasetGenerator._check_for_directory: creating directory {}".format(path))
+            print("_BaseTorchTrainer._check_for_directory: creating directory {}".format(path))
             os.makedirs(path)
         return
     
@@ -278,8 +236,8 @@ class _BaseTorchTrainer:
         start_time = time.time()
 
         #initialize train and test steps
-        self.train_steps = len(self.train_dataset) // self.batch_size
-        self.test_steps = len(self.val_dataset) // self.batch_size
+        self.train_steps = len(self.train_dataset) // self.train_data_loader.batch_size
+        self.test_steps = len(self.val_dataset) // self.val_data_loader.batch_size
 
         for epoch in (tqdm(range(self.epochs))):
             

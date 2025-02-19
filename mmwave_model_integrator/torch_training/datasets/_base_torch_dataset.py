@@ -1,5 +1,6 @@
 from torch.utils.data import Dataset
 from torchvision.transforms import Compose
+import mmwave_model_integrator.torch_training.transforms as transforms
 import torch
 import numpy as np
 
@@ -24,6 +25,23 @@ class _BaseTorchDataset(Dataset):
         """
         self.input_paths = input_paths
         self.output_paths = output_paths
+
+        #configure transforms
+        self.input_transforms = []
+        for transform_config in input_transforms:
+            transform_class = getattr(transforms,transform_config['type'])
+            transform_config.pop('type')
+            self.input_transforms.append(
+                transform_class(**transform_config)
+            )
+        
+        self.output_transforms = []
+        for transform_config in output_transforms:
+            transform_class = getattr(transforms,transform_config['type'])
+            transform_config.pop('type')
+            self.output_transforms.append(
+                transform_class(**transform_config)
+            )
         self.input_transforms = input_transforms
         self.output_transforms = output_transforms
 

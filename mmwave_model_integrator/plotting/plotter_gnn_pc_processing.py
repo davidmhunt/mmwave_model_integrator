@@ -5,7 +5,7 @@ from mmwave_model_integrator.input_encoders._node_encoder import _NodeEncoder
 from mmwave_model_integrator.ground_truth_encoders._gt_node_encoder import _GTNodeEncoder
 from mmwave_model_integrator.plotting.plotter_rng_az_to_pc import PlotterRngAzToPC
 from mmwave_model_integrator.dataset_generators.rng_az_to_pc_dataset_generator import RngAzToPCDatasetGenerator
-
+from mmwave_model_integrator.model_runner.gnn_runner import GNNRunner
 from geometries.transforms.transformation import Transformation
 from geometries.pose.orientation import Orientation
 
@@ -26,6 +26,62 @@ class PlotterGnnPCProcessing:
     ####################################################################
     #Plotting point clouds
     ####################################################################
+
+    def plot_points(
+        self,
+        points: np.ndarray,
+        ax: plt.Axes = None,
+        color="red",
+        label="points",
+        title: str = "Detections",
+        show: bool = False
+    ):
+        """Plot both nodes and ground truth valid nodes on the same plot.
+
+        Args:
+            points (np.ndarray): At least Nx2 array containing the (x,y) coordinates of each node.
+            ax (plt.Axes, optional): The axes on which to display the plot. If none provided, a figure is automatically generated.
+                Defaults to None.
+            color (str,optional): the color of the points. Defaults to "red"
+            label (str,optional): the label for the legend. Defaults to "points"
+            title (str, optional): The title to be displayed on the plot. Defaults to "Nodes and Ground Truth".
+            show (bool, optional): If True, shows the plot. Defaults to False.
+        """
+        if not ax:
+            fig, ax = plt.subplots()
+        
+        #transform node points
+        pts = np.hstack((points[:,0:2],np.zeros(shape=(points.shape[0],1))))
+        rotation = Orientation.from_euler(
+            yaw=90,
+            degrees=True)
+        transformation = Transformation(
+            rotation=rotation._orientation
+        )
+        pts = transformation.apply_transformation(
+            pts
+        )
+
+        # Plot all nodes in a light color
+        ax.scatter(
+            x=pts[:, 0],
+            y=pts[:, 1],
+            s=self.marker_size,
+            color=color,
+            alpha=0.5,
+            label=label
+        )
+        
+        ax.set_xlim(left=-1 * self.plot_x_max, right=self.plot_x_max)
+        ax.set_ylim(bottom=-1 * self.plot_y_max, top=self.plot_y_max)
+        ax.set_xlabel("Y (m)", fontsize=self.font_size_axis_labels)
+        ax.set_ylabel("X (m)", fontsize=self.font_size_axis_labels)
+        ax.set_title(title, fontsize=self.font_size_title)
+        ax.tick_params(labelsize=self.font_size_ticks)
+        ax.legend()
+        
+        if show:
+            plt.show()
 
     def plot_nodes(
         self,
@@ -49,48 +105,23 @@ class PlotterGnnPCProcessing:
         if not ax:
             fig, ax = plt.subplots()
         
-        #transform node points
-        node_pts = np.hstack((nodes[:,0:2],np.zeros(shape=(nodes.shape[0],1))))
-        rotation = Orientation.from_euler(
-            yaw=90,
-            degrees=True)
-        transformation = Transformation(
-            rotation=rotation._orientation
-        )
-        node_pts = transformation.apply_transformation(
-            node_pts
-        )
-
-        # Plot all nodes in a light color
-        ax.scatter(
-            x=node_pts[:, 0],
-            y=node_pts[:, 1],
-            s=self.marker_size,
-            color='blue',
-            alpha=0.5,
-            label='Nodes'
+        self.plot_points(
+            points=nodes[:,0:2],
+            ax=ax,
+            color="blue",
+            label="Nodes",
+            show=False
         )
         
         # Plot ground truth valid nodes in a distinct color
         if labels.shape[0]>0:
             valid_pts = nodes[labels == 1.0, :]
-            valid_pts = np.hstack((valid_pts[:,0:2],np.zeros(shape=(valid_pts.shape[0],1))))
-            rotation = Orientation.from_euler(
-                yaw=90,
-                degrees=True)
-            transformation = Transformation(
-                rotation=rotation._orientation
-            )
-            valid_pts = transformation.apply_transformation(
-                valid_pts
-            )
-
-            ax.scatter(
-                x=valid_pts[:, 0],
-                y=valid_pts[:, 1],
-                s=self.marker_size,
-                color='red',
-                label='Valid Nodes'
+            self.plot_points(
+                points=valid_pts,
+                ax=ax,
+                color="red",
+                label="Valid Nodes",
+                show=False
             )
         
         ax.set_xlim(left=-1 * self.plot_x_max, right=self.plot_x_max)
@@ -104,7 +135,6 @@ class PlotterGnnPCProcessing:
         if show:
             plt.show()
 
-
     ####################################################################
     #Plotting compilations of data
     ####################################################################
@@ -114,22 +144,18 @@ class PlotterGnnPCProcessing:
             input_encoder:_NodeEncoder,
             labels:np.ndarray=np.empty(shape=(0)),
             ground_truth_encoder:_GTNodeEncoder=None,
+            runner:GNNRunner=None,
             axs:plt.Axes=[],
             show=False
     ):
-        """Plot a compilation of the model input, prediction (if available),
-            and desired model output (if available).
+        """_summary_
 
         Args:
-            adc_cube (np.ndarray): _description_
-            range_az_encoder (_RadarRangeAzEncoder): _description_
-            model_runner (_ModelRunner,optional): _description_.
-                Defaults to None
-            lidar_pc_polar_decoder (_lidarPCPolarDecoder, optional): _description_.
-                Defaults to None
-            lidar_pc (np.ndarray,optional): _description_.
-                Defaults to np.empty().
-            lidar_pc_encoder(_Lidar2DPCEncoder,optional):_description_. Defaults to None
+            nodes (np.ndarray): _description_
+            input_encoder (_NodeEncoder): _description_
+            labels (np.ndarray, optional): _description_. Defaults to np.empty(shape=(0)).
+            ground_truth_encoder (_GTNodeEncoder, optional): _description_. Defaults to None.
+            runner (GNNRunner, optional): _description_. Defaults to None.
             axs (plt.Axes, optional): _description_. Defaults to [].
             show (bool, optional): _description_. Defaults to False.
         """
@@ -142,13 +168,34 @@ class PlotterGnnPCProcessing:
         nodes_encoded = input_encoder.encode(nodes)
         labels_encoded = ground_truth_encoder.encode(labels)
 
-        self.plot_nodes(
-            nodes=nodes_encoded,
-            labels=labels_encoded,
+        self.plot_points(
+            points=nodes[:,0:2],
             ax=axs[0,0],
-            title="Input PC vs Ground Truth",
+            color="blue",
+            title="Input Points",
             show=False
         )
+        
+        # Plot ground truth valid nodes in a distinct color
+        if labels.shape[0]>0:
+            valid_pts = nodes[labels == 1.0, :]
+            self.plot_points(
+                points=valid_pts[:,0:2],
+                ax=axs[0,1],
+                color="red",
+                title="GT Detections",
+                show=False
+            )
+        
+        if runner:
+            dets = runner.make_prediction(nodes_encoded)
+            self.plot_points(
+                points=dets[:,0:2],
+                ax=axs[0,2],
+                color="green",
+                title="Predicted Points",
+                show=False
+            )
 
         if show:
             plt.show()
