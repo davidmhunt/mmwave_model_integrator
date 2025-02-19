@@ -24,22 +24,22 @@ trainer = dict(
     ),
     dataset = dict(
         type='_GnnNodeDataset',
-        edge_radius=5.0,
+        edge_radius=10.0,
         transforms=[]
     ),
     data_loader = dict(
         type='TGDataLoader',
-        batch_size=32,
+        batch_size=64,
         shuffle=True,
         num_workers=4
     ),
     dataset_path = generated_dataset["generated_dataset_path"],
     node_directory=generated_dataset["input_encoding_folder"],
     label_directory=generated_dataset["ground_truth_encoding_folder"],
-    val_split = 0.15,
+    val_split = 0.25,
     working_dir = "working_dir",
     save_name = "Sage_GNN",
-    epochs = 10,
+    epochs = 20,
     pretrained_state_dict_path=None,
     cuda_device="cuda:0",
     multiple_GPUs=False

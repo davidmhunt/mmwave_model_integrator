@@ -37,4 +37,4 @@ class GNNRunner(_ModelRunner):
         pred = self.model(x,edge_index).squeeze()
         pred = pred.cpu().detach().numpy()
         
-        return nodes[pred > 0.5,:]
+        return nodes[pred > 0.50,:]

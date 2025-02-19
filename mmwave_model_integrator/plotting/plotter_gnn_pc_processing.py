@@ -172,7 +172,7 @@ class PlotterGnnPCProcessing:
             points=nodes[:,0:2],
             ax=axs[0,0],
             color="blue",
-            title="Input Points",
+            title="Input Points: {} dets".format(nodes.shape[0]),
             show=False
         )
         
@@ -183,7 +183,7 @@ class PlotterGnnPCProcessing:
                 points=valid_pts[:,0:2],
                 ax=axs[0,1],
                 color="red",
-                title="GT Detections",
+                title="GT Detections:{} dets".format(valid_pts.shape[0]),
                 show=False
             )
         
@@ -193,7 +193,7 @@ class PlotterGnnPCProcessing:
                 points=dets[:,0:2],
                 ax=axs[0,2],
                 color="green",
-                title="Predicted Points",
+                title="Predicted Points: {} dets".format(dets.shape[0]),
                 show=False
             )
 
