@@ -6,6 +6,8 @@ from mmwave_model_integrator.ground_truth_encoders._gt_node_encoder import _GTNo
 from mmwave_model_integrator.plotting.plotter_rng_az_to_pc import PlotterRngAzToPC
 from mmwave_model_integrator.dataset_generators.rng_az_to_pc_dataset_generator import RngAzToPCDatasetGenerator
 
+from geometries.transforms.transformation import Transformation
+from geometries.pose.orientation import Orientation
 
 class PlotterGnnPCProcessing:
 
@@ -18,7 +20,7 @@ class PlotterGnnPCProcessing:
         self.font_size_legend = 12
         self.plot_x_max = 10
         self.plot_y_max = 10
-        self.marker_size = 10
+        self.marker_size = 15
         self.line_width = 3
 
     ####################################################################
@@ -47,12 +49,24 @@ class PlotterGnnPCProcessing:
         if not ax:
             fig, ax = plt.subplots()
         
+        #transform node points
+        node_pts = np.hstack((nodes[:,0:2],np.zeros(shape=(nodes.shape[0],1))))
+        rotation = Orientation.from_euler(
+            yaw=90,
+            degrees=True)
+        transformation = Transformation(
+            rotation=rotation._orientation
+        )
+        node_pts = transformation.apply_transformation(
+            node_pts
+        )
+
         # Plot all nodes in a light color
         ax.scatter(
-            x=nodes[:, 0],
-            y=nodes[:, 1],
+            x=node_pts[:, 0],
+            y=node_pts[:, 1],
             s=self.marker_size,
-            color='gray',
+            color='blue',
             alpha=0.5,
             label='Nodes'
         )
@@ -60,6 +74,17 @@ class PlotterGnnPCProcessing:
         # Plot ground truth valid nodes in a distinct color
         if labels.shape[0]>0:
             valid_pts = nodes[labels == 1.0, :]
+            valid_pts = np.hstack((valid_pts[:,0:2],np.zeros(shape=(valid_pts.shape[0],1))))
+            rotation = Orientation.from_euler(
+                yaw=90,
+                degrees=True)
+            transformation = Transformation(
+                rotation=rotation._orientation
+            )
+            valid_pts = transformation.apply_transformation(
+                valid_pts
+            )
+
             ax.scatter(
                 x=valid_pts[:, 0],
                 y=valid_pts[:, 1],
