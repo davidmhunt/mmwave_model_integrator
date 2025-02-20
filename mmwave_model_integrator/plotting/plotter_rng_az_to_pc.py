@@ -7,21 +7,14 @@ from mmwave_model_integrator.decoders._lidar_pc_polar_decoder import _lidarPCPol
 from mmwave_model_integrator.model_runner._model_runner import _ModelRunner
 from mmwave_model_integrator.ground_truth_encoders._gt_encoder_lidar2D import _GTEncoderLidar2D
 from mmwave_model_integrator.transforms.coordinate_transforms import polar_to_cartesian
+from mmwave_model_integrator.plotting._plotter import _Plotter
 
 
-class PlotterRngAzToPC:
+class PlotterRngAzToPC(_Plotter):
 
     def __init__(self) -> None:
         
-        #define default plot parameters:
-        self.font_size_axis_labels = 12
-        self.font_size_title = 15
-        self.font_size_ticks = 12
-        self.font_size_legend = 12
-        self.plot_x_max = 10
-        self.plot_y_max = 20
-        self.marker_size = 10
-        self.line_width = 3
+        super().__init__()
 
     ####################################################################
     #Plotting radar images/responses
@@ -242,38 +235,34 @@ class PlotterRngAzToPC:
     ####################################################################
     def plot_compilation(
             self,
-            adc_cube:np.ndarray,
+            input_data:np.ndarray,
             input_encoder:_RadarRangeAzEncoder,
-            model_runner:_ModelRunner=None,
-            prediction_decoder:_lidarPCPolarDecoder=None,
-            lidar_pc:np.ndarray = np.empty(0),
-            ground_truth_encoder:_GTEncoderLidar2D=None,
+            gt_data:np.ndarray=np.empty(shape=(0)),
+            ground_truth_encoder:_lidarPCPolarDecoder=None,
+            runner:_ModelRunner=None,
+            decoder:_lidarPCPolarDecoder=None,
             axs:plt.Axes=[],
             show=False
     ):
-        """Plot a compilation of the model input, prediction (if available),
-            and desired model output (if available).
+        """_summary_
 
         Args:
-            adc_cube (np.ndarray): _description_
-            range_az_encoder (_RadarRangeAzEncoder): _description_
-            model_runner (_ModelRunner,optional): _description_.
-                Defaults to None
-            lidar_pc_polar_decoder (_lidarPCPolarDecoder, optional): _description_.
-                Defaults to None
-            lidar_pc (np.ndarray,optional): _description_.
-                Defaults to np.empty().
-            lidar_pc_encoder(_Lidar2DPCEncoder,optional):_description_. Defaults to None
+            input_data (np.ndarray): adc data cube
+            input_data (_RadarRangeAzEncoder): _description_
+            gt_data (np.ndarray, optional): lidar point cloud. Defaults to np.empty(shape=(0)).
+            ground_truth_encoder (_lidarPCPolarDecoder, optional): _description_. Defaults to None.
+            runner (_ModelRunner, optional): _description_. Defaults to None.
             axs (plt.Axes, optional): _description_. Defaults to [].
             show (bool, optional): _description_. Defaults to False.
         """
+    
 
         if len(axs) == 0:
             fig,axs=plt.subplots(2,3, figsize=(15,10))
             fig.subplots_adjust(wspace=0.3,hspace=0.30)
         
         #plot range az response
-        rng_az_resp_encoded = input_encoder.encode(adc_cube)
+        rng_az_resp_encoded = input_encoder.encode(input_data)
 
         rng_az_to_plot = input_encoder.get_rng_az_resp_from_encoding(
             rng_az_resp=rng_az_resp_encoded
@@ -296,16 +285,16 @@ class PlotterRngAzToPC:
         )
 
         if input_encoder.full_encoding_ready \
-            and model_runner \
-            and prediction_decoder:
+            and runner \
+            and decoder:
 
             #plot the prediction
-            pred = model_runner.make_prediction(input=rng_az_resp_encoded)
+            pred = runner.make_prediction(input=rng_az_resp_encoded)
 
             self.plot_model_output_polar_grid(
                 output_grid=pred,
-                range_bins_m=prediction_decoder.range_bins,
-                angle_bins_rad=prediction_decoder.angle_bins,
+                range_bins_m=decoder.range_bins,
+                angle_bins_rad=decoder.angle_bins,
                 cmap="binary",
                 title="Model Prediction (Polar)",
                 ax=axs[1,1],
@@ -313,19 +302,19 @@ class PlotterRngAzToPC:
             )
 
             #plot the point cloud in cartesian
-            pc = polar_to_cartesian(prediction_decoder.decode(pred))
+            pc = polar_to_cartesian(decoder.decode(pred))
 
             self.plot_output_pc_cartesian(
                 point_cloud=pc,
-                range_bins_m=prediction_decoder.range_bins,
+                range_bins_m=decoder.range_bins,
                 ax=axs[0,1],
                 title="Generated Point Cloud \n (Cart.)",
                 show=False
             )
         
-        if ground_truth_encoder and lidar_pc.shape[0] > 0:
+        if ground_truth_encoder and gt_data.shape[0] > 0:
 
-            gt_grid = ground_truth_encoder.encode(lidar_pc)
+            gt_grid = ground_truth_encoder.encode(gt_data)
             quantized_pc = ground_truth_encoder.grid_to_polar_points(gt_grid)
             quantized_pc = polar_to_cartesian(quantized_pc)
 
@@ -347,7 +336,7 @@ class PlotterRngAzToPC:
                 show=False
             )
 
-        if ground_truth_encoder and (lidar_pc.shape[0]>0):
+        if ground_truth_encoder and (gt_data.shape[0]>0):
             pass
 
         if show:

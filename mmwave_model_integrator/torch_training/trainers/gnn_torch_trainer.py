@@ -167,4 +167,4 @@ class GNNTorchTrainer(_BaseTorchTrainer):
         print("ModelTrainer.train: total training time {:.2f}".format(end_time - start_time))
         
         #plot the results
-        self.plot_results()
+        self.save_result_fig()

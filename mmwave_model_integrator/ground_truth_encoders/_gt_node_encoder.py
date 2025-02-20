@@ -9,6 +9,9 @@ class _GTNodeEncoder(_GTEncoder):
     def __init__(self):
         super().__init__()
 
+        #set the encoding ready to be true
+        self.full_encoding_ready = True
+
         return
     
     def encode(self, gt_data:np.ndarray)->np.ndarray:
@@ -20,5 +23,8 @@ class _GTNodeEncoder(_GTEncoder):
         Returns:
             np.ndarray: N-element array of labels for each node
         """
+
+        #set the full encoding ready to true
+        self.full_encoding_ready = True
 
         return gt_data

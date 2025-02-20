@@ -3,25 +3,19 @@ import numpy as np
 
 from mmwave_model_integrator.input_encoders._node_encoder import _NodeEncoder
 from mmwave_model_integrator.ground_truth_encoders._gt_node_encoder import _GTNodeEncoder
-from mmwave_model_integrator.plotting.plotter_rng_az_to_pc import PlotterRngAzToPC
-from mmwave_model_integrator.dataset_generators.rng_az_to_pc_dataset_generator import RngAzToPCDatasetGenerator
 from mmwave_model_integrator.model_runner.gnn_runner import GNNRunner
 from geometries.transforms.transformation import Transformation
 from geometries.pose.orientation import Orientation
 
-class PlotterGnnPCProcessing:
+from mmwave_model_integrator.plotting._plotter import _Plotter
+from mmwave_model_integrator.decoders._decoder import _Decoder
+
+
+class PlotterGnnPCProcessing(_Plotter):
 
     def __init__(self) -> None:
         
-        #define default plot parameters:
-        self.font_size_axis_labels = 12
-        self.font_size_title = 15
-        self.font_size_ticks = 12
-        self.font_size_legend = 12
-        self.plot_x_max = 10
-        self.plot_y_max = 10
-        self.marker_size = 15
-        self.line_width = 3
+        super().__init__()
 
     ####################################################################
     #Plotting point clouds
@@ -160,25 +154,48 @@ class PlotterGnnPCProcessing:
             show (bool, optional): _description_. Defaults to False.
         """
 
+    def plot_compilation(
+            self,
+            input_data:np.ndarray,
+            input_encoder:_NodeEncoder,
+            gt_data:np.ndarray=np.empty(shape=(0)),
+            ground_truth_encoder:_GTNodeEncoder=None,
+            runner:GNNRunner=None,
+            decoder:_Decoder=None,
+            axs:plt.Axes=[],
+            show=False
+    ):
+        """_summary_
+
+        Args:
+            input_data (np.ndarray): _description_
+            input_data (_InputEncoder): _description_
+            gt_data (np.ndarray, optional): _description_. Defaults to np.empty(shape=(0)).
+            ground_truth_encoder (_GTEncoder, optional): _description_. Defaults to None.
+            runner (_ModelRunner, optional): _description_. Defaults to None.
+            axs (plt.Axes, optional): _description_. Defaults to [].
+            show (bool, optional): _description_. Defaults to False.
+        """
+
         if len(axs) == 0:
             fig,axs=plt.subplots(2,3, figsize=(15,10))
             fig.subplots_adjust(wspace=0.3,hspace=0.30)
         
         #plot the input point cloud
-        nodes_encoded = input_encoder.encode(nodes)
-        labels_encoded = ground_truth_encoder.encode(labels)
+        nodes_encoded = input_encoder.encode(input_data)
+        labels_encoded = ground_truth_encoder.encode(gt_data)
 
         self.plot_points(
-            points=nodes[:,0:2],
+            points=input_data[:,0:2],
             ax=axs[0,0],
             color="blue",
-            title="Input Points: {} dets".format(nodes.shape[0]),
+            title="Input Points: {} dets".format(input_data.shape[0]),
             show=False
         )
         
         # Plot ground truth valid nodes in a distinct color
-        if labels.shape[0]>0:
-            valid_pts = nodes[labels == 1.0, :]
+        if gt_data.shape[0]>0:
+            valid_pts = input_data[gt_data == 1.0, :]
             self.plot_points(
                 points=valid_pts[:,0:2],
                 ax=axs[0,1],
@@ -198,90 +215,4 @@ class PlotterGnnPCProcessing:
             )
 
         if show:
-            plt.show()
-    
-    ####################################################################
-    #Plotting analysis results
-    ####################################################################
-    def _plot_cdf(
-            self,
-            distances:np.ndarray,
-            label:str,
-            show=True,
-            percentile = 0.95,
-            ax:plt.Axes = None):
-
-        if not ax:
-            fig = plt.figure(figsize=(3,3))
-            ax = fig.add_subplot()
-
-        sorted_data = np.sort(distances)
-        p = 1. * np.arange(len(sorted_data)) / float(len(sorted_data) - 1)
-
-        #compute the index of the percentile
-        idx = (np.abs(p - percentile)).argmin()
-
-        plt.plot(sorted_data[:idx],p[:idx],
-                 label=label,
-                 linewidth=self.line_width)
-
-        ax.set_xlabel('Error (m)',fontsize=self.font_size_axis_labels)
-        ax.set_ylabel('CDF',fontsize=self.font_size_axis_labels)
-        ax.set_title("Error Comparison",fontsize=self.font_size_title)
-        ax.set_xlim((0,5))
-
-        if show:
-            plt.grid()
-            plt.legend()
-            plt.show()
-
-    def plot_distance_metrics_cdfs(
-            self,
-            chamfer_distances:np.ndarray=np.empty(0),
-            hausdorf_distances:np.ndarray=np.empty(0),
-            chamfer_distances_radarHD:np.ndarray=np.empty(0),
-            modified_hausdorf_distances_radarHD:np.ndarray=np.empty(0)
-        ):
-        
-            fig = plt.figure(figsize=(5,5))
-            ax = fig.add_subplot()
-
-            if chamfer_distances.shape[0] > 0:
-                self._plot_cdf(
-                    distances=chamfer_distances,
-                    label="Chamfer Distance",
-                    show=False,
-                    percentile=1.0,
-                    ax = ax
-                )
-
-            if hausdorf_distances.shape[0] > 0:
-                self._plot_cdf(
-                distances=hausdorf_distances,
-                label="Hausdorf Distance",
-                show=False,
-                percentile=1.0,
-                ax = ax
-            )
-
-            if chamfer_distances_radarHD.shape[0] > 0:
-                self._plot_cdf(
-                    distances=chamfer_distances_radarHD,
-                    label="Chamfer Distance (radarHD)",
-                    show=False,
-                    percentile=1.0,
-                    ax = ax
-                )
-            
-            if modified_hausdorf_distances_radarHD.shape[0] > 0:
-                self._plot_cdf(
-                    distances=modified_hausdorf_distances_radarHD,
-                    label="Modified Hausdorff Distance (radarHD)",
-                    show=False,
-                    percentile=1.0,
-                    ax = ax
-                )
-
-            plt.grid()
-            plt.legend()
             plt.show()

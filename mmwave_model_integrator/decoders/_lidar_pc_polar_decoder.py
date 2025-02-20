@@ -1,6 +1,7 @@
 import numpy as np
+from mmwave_model_integrator.decoders._decoder import _Decoder
 
-class _lidarPCPolarDecoder:
+class _lidarPCPolarDecoder(_Decoder):
     """base decoder for model outputs with lidar data encoded in a quantized
     polar grid format
     """
@@ -11,9 +12,8 @@ class _lidarPCPolarDecoder:
 
         #angle parameters
         self.angle_bins:np.ndarray = None
-        self.configure()
 
-        return
+        return super().__init__()
 
     def configure(self):
         """Configure the lidar data decoder. 

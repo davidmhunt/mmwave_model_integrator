@@ -304,7 +304,7 @@ class _BaseTorchTrainer:
         print("ModelTrainer.train: total training time {:.2f}".format(end_time - start_time))
         
         #plot the results
-        self.plot_results()
+        self.save_result_fig()
 
 
     def plot_results(self):
@@ -319,3 +319,26 @@ class _BaseTorchTrainer:
         plt.legend(loc="lower left")
         file_name = "{}.png".format(self.save_name)
         plt.savefig(os.path.join(self.working_dir,file_name))
+    
+    def save_result_fig(self):
+        """
+        Generate and save the training loss plot without displaying it.
+        """
+        plt.style.use("ggplot")
+        fig, ax = plt.subplots()  # Create a figure and axis
+
+        ax.plot(self.history["train_loss"], label="train_loss")
+        ax.plot(self.history["val_loss"], label="val_loss")
+
+        ax.set_title("Training Loss on Dataset")
+        ax.set_xlabel("Epoch #")
+        ax.set_ylabel("Loss")
+        ax.legend(loc="lower left")
+
+        # Save the figure
+        file_name = f"{self.save_name}.png"
+        save_path = os.path.join(self.working_dir, file_name)
+        fig.savefig(save_path)
+
+        # Close the figure to free memory
+        plt.close(fig)

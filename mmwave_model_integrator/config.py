@@ -3,27 +3,31 @@ import types
 
 class Config:
     def __init__(self, config_path):
+
         self.load_config(config_path)
 
     def load_config(self, config_path):
         # Read the content of the config file
+        read_dict = dict()
+
         with open(config_path, 'r') as file:
-            exec(file.read(), globals())
+            exec(file.read(), read_dict)
         
         # If there is a _base_ key, load the base configurations
-        if '_base_' in globals():
-            base_files = globals().pop('_base_')
+        if '_base_' in read_dict:
+            base_files = read_dict.pop('_base_')
             for base_file in base_files:
                 dir_name = os.path.dirname(config_path)
                 self.load_config(os.path.join(os.path.dirname(config_path), base_file))
         
         # Initialize class attributes using setattr
-        for key, value in globals().items():
+        for key, value in read_dict.items():
             if not key.startswith('__') and not callable(value) and key != '_base_':
-                if key not in self.__dict__.items() or not isinstance(value,dict):
+
+                if key not in self.__dict__.keys() or not isinstance(value,dict):
                     setattr(self, key, value)
                 else:
-                    self.recursive_update(key,value)
+                    self.recursive_update(self.__dict__[key],value)
 
     def recursive_update(self, base, new):
         # Update the base dictionary with values from the new dictionary

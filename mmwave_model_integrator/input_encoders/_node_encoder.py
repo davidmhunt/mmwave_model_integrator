@@ -11,6 +11,9 @@ class _NodeEncoder(_InputEncoder):
 
         super().__init__()
 
+        #set the full encoding ready to true
+        self.full_encoding_ready = True
+
         return
     
     def encode(self, nodes):
@@ -22,6 +25,10 @@ class _NodeEncoder(_InputEncoder):
         Returns:
             np.ndarray: NxL array of N nodes with the finalized set of L feature vectors
         """
+
+        #set the full encoding ready to true
+        self.full_encoding_ready = True
+
         return nodes
 
     

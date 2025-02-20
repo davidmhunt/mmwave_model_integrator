@@ -28,9 +28,7 @@ class _InputEncoder:
     def encode(self,input_data:np.ndarray)->np.ndarray:
         """Implemented by child class to encode data for a specific model
         Args:
-            adc_data_cube (np.ndarray): (rx antennas) x (adc samples) x
-                (num_chirps) adc data cube consisting of complex data
-
+            input_data (np.ndarray): input data in the desired format
         Returns:
             np.ndarray: np.ndarray consisting of data to be input
                 into the model
