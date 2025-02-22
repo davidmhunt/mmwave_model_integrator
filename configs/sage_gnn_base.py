@@ -30,12 +30,13 @@ trainer = dict(
         enable_random_yaw_rotate=True,
         enable_occupancy_grid_preturbations=True,
         enable_x_y_position_preturbations=True,
+        enable_cylindrical_encoding=False
     ),
     data_loader = dict(
         type='TGDataLoader',
         batch_size=256,
         shuffle=True,
-        num_workers=8
+        num_workers=20
     ),
     dataset_path = generated_dataset["generated_dataset_path"],
     node_directory=generated_dataset["input_encoding_folder"],
@@ -43,7 +44,7 @@ trainer = dict(
     val_split = 0.25,
     working_dir = "working_dir",
     save_name = "Sage_{}".format(config_label),
-    epochs = 10,
+    epochs = 13,
     pretrained_state_dict_path=None,
     cuda_device="cuda:0",
     multiple_GPUs=False

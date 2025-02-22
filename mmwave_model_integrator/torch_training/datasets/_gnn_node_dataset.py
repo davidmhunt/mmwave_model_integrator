@@ -8,6 +8,7 @@ import numpy as np
 
 from geometries.transforms.transformation import Transformation
 from geometries.pose.orientation import Orientation
+from geometries.coordinate_systems.coordinate_system_conversions import cartesian_to_cylindrical
 
 class _GnnNodeDataset(Dataset):
     def __init__(self,
@@ -17,6 +18,7 @@ class _GnnNodeDataset(Dataset):
                  enable_random_yaw_rotate=False,
                  enable_occupancy_grid_preturbations=False,
                  enable_x_y_position_preturbations=False,
+                 enable_cylindrical_encoding=False,
                  transforms: list = None):
         """Initialize the segmentation dataset with mandatory list-based transforms.
 
@@ -32,7 +34,10 @@ class _GnnNodeDataset(Dataset):
                 to False
             enable_x_y_position_preturbations (bool,optional): On true, 
                 applies random preturbations to the x,y position of each node
-                in the grid. Defaults to False
+                in the grid. Defaults to False,
+            enable_cylindrical_encoding (bool,optional): On true,
+                graph features are additionally encoded in cylindrical coordinates (r,theta,z)
+                instead of cartesian coordinates (x,y,z)
         """
         self.node_paths = node_paths
         self.label_paths = label_paths
@@ -55,6 +60,7 @@ class _GnnNodeDataset(Dataset):
         self.enable_random_yaw_rotate=enable_random_yaw_rotate
         self.enable_occupancy_grid_preturbations=enable_occupancy_grid_preturbations
         self.enable_x_y_position_preturbations=enable_x_y_position_preturbations
+        self.enable_cylindrical_encoding = enable_cylindrical_encoding
     ####################################################################
     #Torch Dataset core functions
     #################################################################### 
@@ -123,6 +129,12 @@ class _GnnNodeDataset(Dataset):
             )
         if self.enable_x_y_position_preturbations:
             nodes[:,0:3] = self.preturb_pc_x_y_positions(nodes[:,0:3])
+
+        if self.enable_cylindrical_encoding:
+            cylindrical_encoding = self.pc_convert_to_cylindrical(
+                pc_cart=nodes[:,0:3]
+            )
+            nodes = np.hstack((nodes,cylindrical_encoding[:,0:2]))
         
         return nodes
 
@@ -209,3 +221,26 @@ class _GnnNodeDataset(Dataset):
 
         else:
             raise ValueError("preturb_pc_x_y_positions: input points must be at least a Nx2 array of points.")
+    
+    def pc_convert_to_cylindrical(self,pc_cart:np.ndarray)->np.ndarray:
+        """Converts a 3D point cloud in cartesian coordinates (x,y,z) to
+            a cylindrical coordinates (r,theta,z)
+
+        Args:
+            pc_cart (np.ndarray): Nx3 Input point cloud of [x,y,z] points
+
+        Raises:
+            ValueError: If point cloud does not have correct dimmensions
+
+        Returns:
+            np.ndarray: Point cloud in cylindrical coordinates (r,theta,z)
+        """
+        if (pc_cart.ndim == 2 and pc_cart.shape[1] == 3):
+            
+            return cartesian_to_cylindrical(
+                pc_cart
+            )
+
+
+        else:
+            raise ValueError("pc_random_yaw_rotate: input points must be an Nx3 array of points.")
