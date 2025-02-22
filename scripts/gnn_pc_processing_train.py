@@ -4,10 +4,10 @@ import mmwave_model_integrator.torch_training.trainers as trainers
 config_path = "../configs/sage_gnn_cylindrical.py"
 
 config_paths = [
-    "../configs/sage_gnn_cylindrical_10fh.py",
-    "../configs/sage_gnn_cylindrical_20fh.py",
-    "../configs/sage_gnn_cylindrical_30fh.py",
-    "../configs/sage_gnn_cylindrical_40fh.py"
+    "../configs/sage_gnn_cylindrical_40fh.py",
+    "../configs/sage_gnn_cylindrical_80fh.py",
+    "../configs/sage_gnn_40_fh_edge_rad_5.py",
+    "../configs/sage_gnn_80_fh_edge_rad_5.py",
 ]
 
 def train_model(config_path):

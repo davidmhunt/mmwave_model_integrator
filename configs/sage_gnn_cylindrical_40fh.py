@@ -8,5 +8,6 @@ generated_dataset = dict(
 
 trainer = dict(
     dataset_path = generated_dataset["generated_dataset_path"],
-    save_name = "Sage_{}_cylindrical".format(config_label)
+    save_name = "Sage_{}_cylindrical".format(config_label),
+    epochs=20
 )

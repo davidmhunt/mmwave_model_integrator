@@ -15,6 +15,7 @@ trainer = dict(
     dataset = dict(
         enable_cylindrical_encoding=True
     ),
+    epochs=15,
     dataset_path = generated_dataset["generated_dataset_path"],
     save_name = "Sage_{}_cylindrical".format(config_label)
 )
