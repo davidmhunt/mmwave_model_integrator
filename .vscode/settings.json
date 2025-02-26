@@ -1,0 +1,13 @@
+{
+    "ros.distro": "jazzy",
+    "python.autoComplete.extraPaths": [
+        "/home/cpsl/Documents/CPSL_ROS2_PCProcessing/build/pc_integrators",
+        "/home/cpsl/Documents/CPSL_ROS2_PCProcessing/install/pc_integrators/lib/python3.12/site-packages",
+        "/opt/ros/jazzy/lib/python3.12/site-packages"
+    ],
+    "python.analysis.extraPaths": [
+        "/home/cpsl/Documents/CPSL_ROS2_PCProcessing/build/pc_integrators",
+        "/home/cpsl/Documents/CPSL_ROS2_PCProcessing/install/pc_integrators/lib/python3.12/site-packages",
+        "/opt/ros/jazzy/lib/python3.12/site-packages"
+    ]
+}
