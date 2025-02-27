@@ -71,7 +71,7 @@ curl -sSL https://install.python-poetry.org | python3 -
 If your machine supports it Navigate to the mmwave_model_integrator foler (this folder) and execute the following command
 
 ```
-poetry install --with submodules,torch
+poetry install --with torch --extras "submodules"
 ```
 
 If you get an an error saying: "Failed to unlock the collection!", execute the following command in the terminal:
@@ -83,7 +83,7 @@ export PYTHON_KEYRING_BACKEND=keyring.backends.null.Keyring
 If your machine supports it Navigate to the mmwave_model_integrator foler (this folder) and execute the following command
 
 ```
-poetry install --with submodules
+poetry install --extras "submodules"
 ```
 
 If you get an an error saying: "Failed to unlock the collection!", execute the following command in the terminal:
