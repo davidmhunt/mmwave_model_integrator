@@ -47,7 +47,8 @@ class _ModelRunner:
         self.model.eval()
 
         #TODO: Remaining behavior implemented by child classes
-
+        total_params = sum(p.numel() for p in self.model.parameters())
+        print(f"Total number of parameters: {total_params}")
         return
 
     def make_prediction(self, input:np.ndarray):

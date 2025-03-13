@@ -17,6 +17,10 @@ class PlotterGnnPCProcessing(_Plotter):
         
         super().__init__()
 
+        self.plot_x_max = 4
+        self.plot_y_max = 6
+        self.marker_size = 30
+
     ####################################################################
     #Plotting point clouds
     ####################################################################
@@ -134,28 +138,6 @@ class PlotterGnnPCProcessing(_Plotter):
     ####################################################################
     def plot_compilation(
             self,
-            nodes:np.ndarray,
-            input_encoder:_NodeEncoder,
-            labels:np.ndarray=np.empty(shape=(0)),
-            ground_truth_encoder:_GTNodeEncoder=None,
-            runner:GNNRunner=None,
-            axs:plt.Axes=[],
-            show=False
-    ):
-        """_summary_
-
-        Args:
-            nodes (np.ndarray): _description_
-            input_encoder (_NodeEncoder): _description_
-            labels (np.ndarray, optional): _description_. Defaults to np.empty(shape=(0)).
-            ground_truth_encoder (_GTNodeEncoder, optional): _description_. Defaults to None.
-            runner (GNNRunner, optional): _description_. Defaults to None.
-            axs (plt.Axes, optional): _description_. Defaults to [].
-            show (bool, optional): _description_. Defaults to False.
-        """
-
-    def plot_compilation(
-            self,
             input_data:np.ndarray,
             input_encoder:_NodeEncoder,
             gt_data:np.ndarray=np.empty(shape=(0)),
@@ -178,7 +160,7 @@ class PlotterGnnPCProcessing(_Plotter):
         """
 
         if len(axs) == 0:
-            fig,axs=plt.subplots(2,3, figsize=(15,10))
+            fig,axs=plt.subplots(1,3, figsize=(15,5))
             fig.subplots_adjust(wspace=0.3,hspace=0.30)
         
         #plot the input point cloud
@@ -187,7 +169,7 @@ class PlotterGnnPCProcessing(_Plotter):
 
         self.plot_points(
             points=input_data[:,0:2],
-            ax=axs[0,0],
+            ax=axs[0],
             color="blue",
             title="Input Points: {} dets".format(input_data.shape[0]),
             show=False
@@ -198,7 +180,7 @@ class PlotterGnnPCProcessing(_Plotter):
             valid_pts = input_data[gt_data == 1.0, :]
             self.plot_points(
                 points=valid_pts[:,0:2],
-                ax=axs[0,1],
+                ax=axs[1],
                 color="red",
                 title="GT Detections:{} dets".format(valid_pts.shape[0]),
                 show=False
@@ -208,7 +190,7 @@ class PlotterGnnPCProcessing(_Plotter):
             dets = runner.make_prediction(nodes_encoded)
             self.plot_points(
                 points=dets[:,0:2],
-                ax=axs[0,2],
+                ax=axs[2],
                 color="green",
                 title="Predicted Points: {} dets".format(dets.shape[0]),
                 show=False

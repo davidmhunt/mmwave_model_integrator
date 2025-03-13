@@ -9,7 +9,7 @@ config_label = "10fp_80fh_0_50_th_5mRng_0_2_res"
 generated_dataset = dict(
     input_encoding_folder="nodes",
     ground_truth_encoding_folder="labels",
-    generated_dataset_path="/data/radnav/radnav_model_datasets/{}_train".format(config_label)
+    generated_dataset_path="/data/radnav/radnadv_model_datasets/{}_train".format(config_label)
 )
 
 trainer = dict(
@@ -36,7 +36,7 @@ trainer = dict(
         type='TGDataLoader',
         batch_size=256,
         shuffle=True,
-        num_workers=20
+        num_workers=6
     ),
     dataset_path = generated_dataset["generated_dataset_path"],
     node_directory=generated_dataset["input_encoding_folder"],

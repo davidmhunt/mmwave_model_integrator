@@ -55,6 +55,9 @@ class RadarHDRunner(_ModelRunner):
         #put the model into evaluation mode
         self.model.eval()
 
+        total_params = sum(p.numel() for p in self.model.parameters())
+        print(f"Total number of parameters: {total_params}")
+
         return
 
     def make_prediction(self, input: np.ndarray):
