@@ -27,6 +27,7 @@ class _Plotter:
             ground_truth_encoder:_GTEncoder=None,
             runner:_ModelRunner=None,
             decoder:_Decoder=None,
+            camera_view:np.ndarray=np.empty(shape=(0)),
             axs:plt.Axes=[],
             show=False
     ):
@@ -38,6 +39,8 @@ class _Plotter:
             gt_data (np.ndarray, optional): _description_. Defaults to np.empty(shape=(0)).
             ground_truth_encoder (_GTEncoder, optional): _description_. Defaults to None.
             runner (_ModelRunner, optional): _description_. Defaults to None.
+            decoder (_Decoder,optional): _description_.Defaults to None.
+            camera_view:(np.ndarray,optional): _description_. Defaults to np.empty(shape=(0)).
             axs (plt.Axes, optional): _description_. Defaults to [].
             show (bool, optional): _description_. Defaults to False.
         """

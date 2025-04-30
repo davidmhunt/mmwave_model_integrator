@@ -42,8 +42,6 @@ class _BaseTorchDataset(Dataset):
             self.output_transforms.append(
                 transform_class(**transform_config)
             )
-        self.input_transforms = input_transforms
-        self.output_transforms = output_transforms
 
         self.num_samples = len(input_paths)
 

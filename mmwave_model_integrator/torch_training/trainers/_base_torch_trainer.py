@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import torch
 import time
 import os
+import copy
 
 import mmwave_model_integrator.torch_training.models as models
 import mmwave_model_integrator.torch_training.optimizers as optimizers
@@ -170,12 +171,12 @@ class _BaseTorchTrainer:
         dataset.pop('type')
 
         #initialize the train/val dataset
-        train_dataset_config = dataset.copy()
+        train_dataset_config = copy.deepcopy(dataset)
         train_dataset_config["input_paths"] = train_inputs
         train_dataset_config["output_paths"] = train_outputs
         self.train_dataset = dataset_class(**train_dataset_config)
 
-        val_dataset_config = dataset.copy()
+        val_dataset_config = copy.deepcopy(dataset)
         val_dataset_config["input_paths"] = val_inputs
         val_dataset_config["output_paths"] = val_outputs
         self.val_dataset = dataset_class(**val_dataset_config)
@@ -192,11 +193,11 @@ class _BaseTorchTrainer:
         data_loader_config.pop('type')
         data_loader_config['pin_memory'] = self.pin_memory
 
-        train_data_loader_config = data_loader_config.copy()
+        train_data_loader_config = copy.deepcopy(data_loader_config)
         train_data_loader_config['dataset'] = self.train_dataset
         self.train_data_loader = data_loader_class(**train_data_loader_config)
 
-        val_data_loader_config = data_loader_config.copy()
+        val_data_loader_config = copy.deepcopy(data_loader_config)
         val_data_loader_config['dataset'] = self.val_dataset
         self.val_data_loader = data_loader_class(**val_data_loader_config)
 
