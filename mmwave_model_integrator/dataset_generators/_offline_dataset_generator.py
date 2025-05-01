@@ -224,8 +224,10 @@ class _OfflineDatasetGenerator:
             #get the output data
             output_encoding = self._get_output_encoding_from_dataset(idx=sample_idx)
 
-            #save the encoding to a file
-            self.save_encodings_to_file(input_encoding,output_encoding)
+            if self.input_encoder.full_encoding_ready:
+
+                #save the encoding to a file
+                self.save_encodings_to_file(input_encoding,output_encoding)
         
         print("generated dataset now has {} samples".format(self.current_sample_number))
     
