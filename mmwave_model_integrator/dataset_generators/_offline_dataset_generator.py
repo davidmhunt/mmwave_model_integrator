@@ -221,10 +221,10 @@ class _OfflineDatasetGenerator:
             #get the input data
             input_encoding = self._get_input_encoding_from_dataset(idx=sample_idx)
 
-            #get the output data
-            output_encoding = self._get_output_encoding_from_dataset(idx=sample_idx)
-
             if self.input_encoder.full_encoding_ready:
+
+                #get the output data
+                output_encoding = self._get_output_encoding_from_dataset(idx=sample_idx)
 
                 #save the encoding to a file
                 self.save_encodings_to_file(input_encoding,output_encoding)

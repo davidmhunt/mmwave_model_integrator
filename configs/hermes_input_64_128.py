@@ -1,12 +1,13 @@
-_base_ = ["radcloud.py"]
+_base_ = ["hermes_base.py"]
+input_size = (64,128) #closest size to 100x90
 
 model = dict(
     encoder_input_channels=1,
-    input_dimmensions=(96,88) #closest size to 100x90
+    input_dimmensions=input_size
     )
 
 generated_dataset = dict(
-    generated_dataset_path="/home/david/Downloads/generated_datasets/RadSAR_train"
+    generated_dataset_path="/home/david/Downloads/generated_datasets/Hermes_train"
 )
 
 trainer = dict(
@@ -17,21 +18,17 @@ trainer = dict(
             dict(type='ToTensor'),
             dict(
                 type='Resize',
-                size=(96,88)
+                size=input_size
             )
         ],
         output_transforms=[
             dict(type='ToTensor'),
             dict(
                 type='Resize',
-                size=(96,88)
+                size=input_size
             )
         ]
     ),
-    data_loader = dict(
-        batch_size=32
-    ),
-    dataset_path = generated_dataset["generated_dataset_path"],
-    save_name = "RadSAR_1_chirp_10e_backup"
+    save_name = "hermes_input_64_128",
 )
 

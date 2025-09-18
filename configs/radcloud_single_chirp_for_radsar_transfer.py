@@ -6,7 +6,7 @@ model = dict(
     )
 
 generated_dataset = dict(
-    generated_dataset_path="/home/david/Downloads/generated_datasets/RadSAR_train"
+    generated_dataset_path="/home/david/Downloads/generated_datasets/RadCloud_train"
 )
 
 trainer = dict(
@@ -29,9 +29,10 @@ trainer = dict(
         ]
     ),
     data_loader = dict(
-        batch_size=32
+        batch_size=128,
+        num_workers=10
     ),
     dataset_path = generated_dataset["generated_dataset_path"],
-    save_name = "RadSAR_1_chirp_10e_backup"
+    save_name = "RadCloud_1_chirp_10e_radsar_transfer"
 )
 

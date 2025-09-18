@@ -10,7 +10,7 @@ from mmwave_model_integrator.plotting.plotter_rng_az_to_pc import PlotterRngAzTo
 from mmwave_model_integrator.input_encoders._radar_range_az_encoder import _RadarRangeAzEncoder
 from mmwave_model_integrator.decoders._lidar_pc_polar_decoder import _lidarPCPolarDecoder
 from mmwave_model_integrator.model_runner._model_runner import _ModelRunner
-from mmwave_model_integrator.ground_truth_encoders._gt_encoder_lidar2D import _GTEncoderLidar2D
+from mmwave_model_integrator.ground_truth_encoders._gt_encoder_lidar2D_polar import _GTEncoderLidar2DPolar
 from mmwave_model_integrator.transforms.coordinate_transforms import polar_to_cartesian
 
 class AnalyzerRngAzToPC:
@@ -20,14 +20,14 @@ class AnalyzerRngAzToPC:
                  input_encoder:_RadarRangeAzEncoder,
                  model_runner:_ModelRunner,
                  prediction_decoder:_lidarPCPolarDecoder,
-                 ground_truth_encoder: _GTEncoderLidar2D,
+                 ground_truth_encoder: _GTEncoderLidar2DPolar,
                  temp_dir_path="~/Downloads/odometry_temp") -> None:
         
         self.dataset:CpslDS = cpsl_dataset
         self.input_encoder:_RadarRangeAzEncoder = input_encoder
         self.model_runner:_ModelRunner = model_runner
         self.prediction_decoder:_lidarPCPolarDecoder = prediction_decoder
-        self.ground_truth_encoder:_GTEncoderLidar2D = ground_truth_encoder
+        self.ground_truth_encoder:_GTEncoderLidar2DPolar = ground_truth_encoder
         
         self.temp_dir_path = temp_dir_path
         self.temp_file_name = "frame"
@@ -60,30 +60,48 @@ class AnalyzerRngAzToPC:
             modified_hausdorff_distances_radarHD (np.ndarray, optional): _description_. Defaults to None.
         """
         #compute stats for hausdorff
-        hausdorff_mean = np.mean(hausdorff_distances)
-        hausdorff_median = np.median(hausdorff_distances)
-        hausdorff_tail_90_percent = self._get_percentile(hausdorff_distances,0.90)
+        if len(hausdorff_distances) > 0:
+            hausdorff_mean = np.mean(hausdorff_distances)
+            hausdorff_median = np.median(hausdorff_distances)
+            hausdorff_tail_90_percent = self._get_percentile(hausdorff_distances,0.90)
+        else:
+            hausdorff_mean = 0
+            hausdorff_median = 0
+            hausdorff_tail_90_percent = 0
         
         #compute stats for modified hausdorff (radarHD)
-        hausdorff_radar_HD_mean = \
-            np.mean(modified_hausdorff_distances_radarHD)
-        hausdorff_radar_HD_median = \
+        if len(modified_hausdorff_distances_radarHD) > 0:
+            hausdorff_radar_HD_mean = \
+                np.mean(modified_hausdorff_distances_radarHD)
+            hausdorff_radar_HD_median = \
             np.median(modified_hausdorff_distances_radarHD)
-        hausdorff_radar_HD_tail_90_percent = \
-            self._get_percentile(modified_hausdorff_distances_radarHD, 0.90)
+            hausdorff_radar_HD_tail_90_percent = \
+                self._get_percentile(modified_hausdorff_distances_radarHD, 0.90)
+        else:
+            hausdorff_radar_HD_mean = 0
+            hausdorff_radar_HD_median = 0
+            hausdorff_radar_HD_tail_90_percent = 0
 
-        #compute stats for chamfer
-        chamfer_mean = np.mean(chamfer_distances)
-        chamfer_median = np.median(chamfer_distances)
-        chamfer_tail_90_percent = self._get_percentile(chamfer_distances,0.90)
+        if len(chamfer_distances) > 0:
+            chamfer_mean = np.mean(chamfer_distances)
+            chamfer_median = np.median(chamfer_distances)
+            chamfer_tail_90_percent = self._get_percentile(chamfer_distances,0.90)
+        else:
+            chamfer_mean = 0
+            chamfer_median = 0
+            chamfer_tail_90_percent = 0
         
-        #compute stats for chamfer (RadarHD)
-        chamfer_radarHD_mean = \
-            np.mean(chamfer_distances_radarHD)
-        chamfer_radarHD_median = \
-            np.median(chamfer_distances_radarHD)
-        chamfer_radarHD_tail_90_percent = \
-            self._get_percentile(chamfer_distances_radarHD, 0.90)
+        if len(chamfer_distances_radarHD) > 0:
+            chamfer_radarHD_mean = \
+                np.mean(chamfer_distances_radarHD)
+            chamfer_radarHD_median = \
+                np.median(chamfer_distances_radarHD)
+            chamfer_radarHD_tail_90_percent = \
+                self._get_percentile(chamfer_distances_radarHD, 0.90)
+        else:
+            chamfer_radarHD_mean = 0
+            chamfer_radarHD_median = 0
+            chamfer_radarHD_tail_90_percent = 0
         
         #generate and display table
         dict = {

@@ -1,5 +1,6 @@
 from torch.utils.data import Dataset
 from torchvision.transforms import Compose
+from mmwave_model_integrator.torch_training.transforms.random_transform_pair import ComposePair
 import mmwave_model_integrator.torch_training.transforms as transforms
 import torch
 import numpy as np
@@ -14,7 +15,8 @@ class _BaseTorchDataset(Dataset):
                  input_paths:list,
                  output_paths:list,
                  input_transforms:list = None,
-                 output_transforms:list = None):
+                 output_transforms:list = None,
+                 paired_transforms:list = None):
         """initialize the segmentation dataset
 
         Args:
@@ -40,6 +42,14 @@ class _BaseTorchDataset(Dataset):
             transform_class = getattr(transforms,transform_config['type'])
             transform_config.pop('type')
             self.output_transforms.append(
+                transform_class(**transform_config)
+            )
+        
+        self.paired_transforms = []
+        for transform_config in paired_transforms:
+            transform_class = getattr(transforms,transform_config['type'])
+            transform_config.pop('type')
+            self.paired_transforms.append(
                 transform_class(**transform_config)
             )
 
@@ -79,5 +89,9 @@ class _BaseTorchDataset(Dataset):
         if self.output_transforms:
             transforms = Compose(self.output_transforms)
             mask = transforms(mask)
+        
+        if self.paired_transforms:
+            transforms = ComposePair(self.paired_transforms)
+            image,mask = transforms(image,mask)
 
         return (image,mask)

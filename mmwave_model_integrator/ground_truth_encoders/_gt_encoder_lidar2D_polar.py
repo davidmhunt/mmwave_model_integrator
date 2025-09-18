@@ -4,7 +4,7 @@ import cv2
 from mmwave_model_integrator.transforms.coordinate_transforms import cartesian_to_spherical,spherical_to_cartesian
 from mmwave_model_integrator.ground_truth_encoders._gt_encoder import _GTEncoder
 
-class _GTEncoderLidar2D(_GTEncoder):
+class _GTEncoderLidar2DPolar(_GTEncoder):
     """Encoder specifically designed to encode lidar data into
     the format used to train a model
     """

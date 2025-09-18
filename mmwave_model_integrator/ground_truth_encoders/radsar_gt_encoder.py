@@ -1,11 +1,11 @@
 import numpy as np
 import cv2
 
-from mmwave_model_integrator.ground_truth_encoders._gt_encoder_lidar2D import _GTEncoderLidar2D
+from mmwave_model_integrator.ground_truth_encoders._gt_encoder_lidar2D_polar import _GTEncoderLidar2DPolar
 from mmwave_model_integrator.transforms.coordinate_transforms import cartesian_to_spherical,polar_to_cartesian
 from mmwave_radar_processing.supportFns.rotation_functions import apply_rot_trans
 
-class RadSarGTEncoder(_GTEncoderLidar2D):
+class RadSarGTEncoder(_GTEncoderLidar2DPolar):
 
     def __init__(
             self,
@@ -69,7 +69,7 @@ class RadSarGTEncoder(_GTEncoderLidar2D):
         grid = self.points_polar_to_grid(pc)
 
         #perform BCC to remove miscellaneous smaller detections
-        # grid = self._apply_binary_connected_component_analysis_to_grid(grid)
+        grid = self._apply_binary_connected_component_analysis_to_grid(grid)
 
         #specify full encoding ready
         self.full_encoding_ready = True
@@ -113,7 +113,7 @@ class RadSarGTEncoder(_GTEncoderLidar2D):
             cv2.connectedComponentsWithStats(grid.astype(np.uint8))
 
         # Filter out isolated pixels
-        min_size = 4 #min area in pixels
+        min_size = 10 #min area in pixels
 
         #min height or width
         min_height = 3

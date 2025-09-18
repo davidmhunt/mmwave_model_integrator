@@ -6,27 +6,27 @@ from IPython.display import display
 
 
 from cpsl_datasets.cpsl_ds import CpslDS
-from mmwave_model_integrator.plotting.plotter_rng_az_to_pc import PlotterRngAzToPC
-from mmwave_model_integrator.input_encoders.radsar_encoder import RadSAREncoder
-from mmwave_model_integrator.decoders._lidar_pc_polar_decoder import _lidarPCPolarDecoder
+from mmwave_model_integrator.input_encoders.hermes_encoder import HermesEncoder
+from mmwave_model_integrator.decoders.heremes_decoder import HermesDecoder
 from mmwave_model_integrator.model_runner._model_runner import _ModelRunner
-from mmwave_model_integrator.ground_truth_encoders._gt_encoder_lidar2D_polar import _GTEncoderLidar2DPolar
+from mmwave_model_integrator.ground_truth_encoders.hermes_gt_encoder import HermesGTEncoder
 from mmwave_model_integrator.transforms.coordinate_transforms import polar_to_cartesian
 
 from mmwave_model_integrator.analyzers.analyzer_rng_az_to_pc import AnalyzerRngAzToPC
 
-class AnalyzerRadSAR(AnalyzerRngAzToPC):
+class AnalyzerHermes(AnalyzerRngAzToPC):
 
     def __init__(self,
                  cpsl_dataset:CpslDS,
-                 input_encoder:RadSAREncoder,
+                 input_encoder:HermesEncoder,
                  model_runner:_ModelRunner,
-                 prediction_decoder:_lidarPCPolarDecoder,
-                 ground_truth_encoder: _GTEncoderLidar2DPolar,
+                 prediction_decoder:HermesDecoder,
+                 ground_truth_encoder: HermesEncoder,
                  temp_dir_path="~/Downloads/odometry_temp") -> None:
-        
-        self.input_encoder:RadSAREncoder = None
-        
+
+        self.input_encoder:HermesEncoder = None
+        self.ground_truth_encoder:HermesGTEncoder = None
+
         super().__init__(
             cpsl_dataset=cpsl_dataset,
             input_encoder=input_encoder,
@@ -63,8 +63,12 @@ class AnalyzerRadSAR(AnalyzerRngAzToPC):
                 vels=vel_data
             )
 
-            lidar_pc = self.dataset.get_lidar_point_cloud_raw(idx=start_idx)
-            grid = self.ground_truth_encoder.encode(lidar_pc)
+            if self.input_encoder.full_encoding_ready:
+                lidar_pc = self.dataset.get_lidar_point_cloud_raw(idx=start_idx)
+                grid = self.ground_truth_encoder.encode(
+                    lidar_pc=lidar_pc,
+                    input_encoding=encoded_data
+                )
 
             start_idx += 1
         
@@ -181,22 +185,21 @@ class AnalyzerRadSAR(AnalyzerRngAzToPC):
             vel_data = np.array([vel,0,0])
 
         #get the ground truth grid, convert to spherical points, convert to cartesian points
-        rng_az_resp = self.input_encoder.encode(
+        input_encoding = self.input_encoder.encode(
             adc_data_cube=adc_cube,
             vels=vel_data
         )
 
         if self.input_encoder.full_encoding_ready:
-            pred = self.model_runner.make_prediction(input=rng_az_resp)
-            pc_pred = self.prediction_decoder.convert_polar_to_cartesian(
-                self.prediction_decoder.decode(pred)
-            )
+            pred = self.model_runner.make_prediction(input=input_encoding)
+            pc_pred = self.prediction_decoder.decode(pred)
 
             #compute the ground truth point cloud
             lidar_pc = self.dataset.get_lidar_point_cloud_raw(idx=sample_idx)
-            grid = self.ground_truth_encoder.encode(lidar_pc)
-            quantized_pc = self.ground_truth_encoder.grid_to_polar_points(grid)
-            ground_truth = polar_to_cartesian(quantized_pc)
+            ground_truth = self.ground_truth_encoder.encode(lidar_pc,input_encoding)
+
+            #TODO: compared to the ground truth mask
+            ground_truth = self.ground_truth_encoder.grid_to_points(ground_truth)
 
             #get the prediction, convert to spherical points, convert to cartesian points
             #TODO: Get the output ground truth encoding

@@ -2,7 +2,7 @@ import numpy as np
 
 from mmwave_radar_processing.config_managers.cfgManager import ConfigManager
 from mmwave_radar_processing.processors.virtual_array_reformater import VirtualArrayReformatter
-from mmwave_radar_processing.processors.range_azmith_resp import RangeAzimuthProcessor
+from mmwave_radar_processing.processors.range_angle_resp import RangeAngleProcessor
 from mmwave_model_integrator.input_encoders._input_encoder import _InputEncoder
 
 from mmwave_model_integrator.transforms import coordinate_transforms
@@ -28,7 +28,7 @@ class _RadarRangeAzEncoder(_InputEncoder):
 
         #response processing
         self.virtual_array_reformater:VirtualArrayReformatter = None
-        self.range_azimuth_processor:RangeAzimuthProcessor = None
+        self.range_azimuth_processor:RangeAngleProcessor = None
 
         #array for the encoded data
         #NOTE: #indexed/implemented depending on child class
@@ -46,7 +46,7 @@ class _RadarRangeAzEncoder(_InputEncoder):
         """
 
         #configure range azimuth processor
-        self.range_azimuth_processor = RangeAzimuthProcessor(
+        self.range_azimuth_processor = RangeAngleProcessor(
             config_manager=self.config_manager,
             num_angle_bins=self.num_az_angle_bins
         )

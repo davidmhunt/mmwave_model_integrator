@@ -29,9 +29,11 @@ trainer = dict(
         ]
     ),
     data_loader = dict(
-        batch_size=32
+        batch_size=64,
+        num_workers=10
     ),
     dataset_path = generated_dataset["generated_dataset_path"],
-    save_name = "RadSAR_1_chirp_10e_backup"
+    save_name = "RadSAR_1_chirp_10e_radcloud_transfer",
+    pretrained_state_dict_path="/home/david/Documents/mmwave_model_integrator/notebooks/working_dir/RadCloud_1_chirp_10e_radsar_transfer.pth"
 )
 

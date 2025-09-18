@@ -8,28 +8,32 @@ from radcloud.models.unet import unet
 
 from mmwave_model_integrator.model_runner._model_runner import _ModelRunner
 
-class RadSARRunner(_ModelRunner):
+class HermesRunner(_ModelRunner):
 
     def __init__(
             self,
             state_dict_path: str,
-            cuda_device="cuda:0") -> None:
-        
+            cuda_device="cuda:0",
+            input_dimmensions: tuple=(120,240),
+            encoder_out_channels = (64,128,256),
+            decoder_input_channels = (512,256,128),
+            ) -> None:
+
         #specify the radcloud model
         radcloud_model = unet(
             encoder_input_channels= 1,
-            encoder_out_channels= (64,128,256),
-            decoder_input_channels= (512,256,128),
+            encoder_out_channels= encoder_out_channels,
+            decoder_input_channels= decoder_input_channels,
             decoder_out_channels= 64,
             output_channels= 1,
             retain_dimmension= False,
-            input_dimmensions= (96,88)
+            input_dimmensions= input_dimmensions
         )
 
         #specify the transforms
         self.transforms = Compose([
             transforms.ToTensor(),
-            transforms.Resize((96,88))
+            transforms.Resize(input_dimmensions)
         ])
         
         super().__init__(
@@ -68,7 +72,7 @@ class RadSARRunner(_ModelRunner):
             pred = pred.cpu().numpy()
 
             #filter out weak predictions
-            pred = (pred > 0.25) * 1.0
+            pred = (pred > 0.4) * 1.0
 
         return pred
     

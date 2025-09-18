@@ -1,9 +1,9 @@
 import numpy as np
 
-from mmwave_model_integrator.ground_truth_encoders._gt_encoder_lidar2D import _GTEncoderLidar2D
+from mmwave_model_integrator.ground_truth_encoders._gt_encoder_lidar2D_polar import _GTEncoderLidar2DPolar
 from mmwave_model_integrator.transforms.coordinate_transforms import cartesian_to_spherical,polar_to_cartesian
 
-class RadarHDGTEncoder(_GTEncoderLidar2D):
+class RadarHDGTEncoder(_GTEncoderLidar2DPolar):
 
     def __init__(
             self,

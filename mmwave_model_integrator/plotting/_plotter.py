@@ -59,7 +59,7 @@ class _Plotter:
             ax:plt.Axes = None):
 
         if not ax:
-            fig = plt.figure(figsize=(3,3))
+            fig = plt.figure(figsize=(5,3))
             ax = fig.add_subplot()
 
         sorted_data = np.sort(distances)
@@ -75,7 +75,7 @@ class _Plotter:
         ax.set_xlabel('Error (m)',fontsize=self.font_size_axis_labels)
         ax.set_ylabel('CDF',fontsize=self.font_size_axis_labels)
         ax.set_title("Error Comparison",fontsize=self.font_size_title)
-        ax.set_xlim((0,5))
+        ax.set_xlim((0,1.75))
 
         if show:
             plt.grid()
@@ -90,7 +90,7 @@ class _Plotter:
             modified_hausdorf_distances_radarHD:np.ndarray=np.empty(0)
         ):
         
-            fig = plt.figure(figsize=(5,5))
+            fig = plt.figure(figsize=(5,1.5))
             ax = fig.add_subplot()
 
             if chamfer_distances.shape[0] > 0:
@@ -114,7 +114,7 @@ class _Plotter:
             if chamfer_distances_radarHD.shape[0] > 0:
                 self._plot_cdf(
                     distances=chamfer_distances_radarHD,
-                    label="Chamfer Distance (radarHD)",
+                    label="Chamfer Distance",
                     show=False,
                     percentile=1.0,
                     ax = ax
@@ -123,7 +123,7 @@ class _Plotter:
             if modified_hausdorf_distances_radarHD.shape[0] > 0:
                 self._plot_cdf(
                     distances=modified_hausdorf_distances_radarHD,
-                    label="Modified Hausdorff Distance (radarHD)",
+                    label="Modified Hausdorff Distance",
                     show=False,
                     percentile=1.0,
                     ax = ax

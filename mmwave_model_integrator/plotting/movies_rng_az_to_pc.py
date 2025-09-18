@@ -7,7 +7,7 @@ from mmwave_model_integrator.plotting.plotter_rng_az_to_pc import PlotterRngAzTo
 from mmwave_model_integrator.input_encoders._radar_range_az_encoder import _RadarRangeAzEncoder
 from mmwave_model_integrator.decoders._lidar_pc_polar_decoder import _lidarPCPolarDecoder
 from mmwave_model_integrator.model_runner._model_runner import _ModelRunner
-from mmwave_model_integrator.ground_truth_encoders._gt_encoder_lidar2D import _GTEncoderLidar2D
+from mmwave_model_integrator.ground_truth_encoders._gt_encoder_lidar2D_polar import _GTEncoderLidar2DPolar
 from mmwave_model_integrator.plotting._movie_generator import _MovieGenerator
 
 class MovieGeneratorRngAzToPC(_MovieGenerator):
@@ -19,7 +19,7 @@ class MovieGeneratorRngAzToPC(_MovieGenerator):
                  input_encoder:_RadarRangeAzEncoder,
                  runner:_ModelRunner=None,
                  decoder:_lidarPCPolarDecoder=None,
-                 ground_truth_encoder:_GTEncoderLidar2D=None,
+                 ground_truth_encoder:_GTEncoderLidar2DPolar=None,
                  temp_dir_path="~/Downloads/odometry_temp",
                  ) -> None:
         
