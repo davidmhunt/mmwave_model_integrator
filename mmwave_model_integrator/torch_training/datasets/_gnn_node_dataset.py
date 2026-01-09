@@ -86,12 +86,22 @@ class _GnnNodeDataset(Dataset):
         edge_index = radius_graph(x[:, :2], r=self.edge_radius, loop=False)
 
         # Compute edge attributes (Euclidean distance between nodes)
-        edge_attr = []
-        for i, j in edge_index.t():  # Iterate over edge pairs (i, j)
-            dist = torch.norm(x[i, :2] - x[j, :2])  # Euclidean distance in 2D (x, y)
-            edge_attr.append(dist)
+        # --- NEW FAST WAY ---
+        # row contains indices of source nodes, col contains indices of target nodes
+        row, col = edge_index
 
-        edge_attr = torch.tensor(edge_attr, dtype=torch.float32)  # Convert to tensor
+        # Vectorized lookup: Get all source coordinates and all target coordinates at once
+        src_pos = x[row, :2]
+        dst_pos = x[col, :2]
+
+        # Compute Euclidean distance for all edges in one C++ operation
+        edge_attr = (src_pos - dst_pos).norm(dim=1)
+        # edge_attr = []
+        # for i, j in edge_index.t():  # Iterate over edge pairs (i, j)
+        #     dist = torch.norm(x[i, :2] - x[j, :2])  # Euclidean distance in 2D (x, y)
+        #     edge_attr.append(dist)
+
+        # edge_attr = torch.tensor(edge_attr, dtype=torch.float32)  # Convert to tensor
 
         # Convert labels to tensor
         y = torch.tensor(labels, dtype=torch.float32)

@@ -107,7 +107,6 @@ class GNNTorchTrainer(_BaseTorchTrainer):
             batch_num = 0
 
             for data in self.train_data_loader:
-                print("Batch {}".format(batch_num))
                 batch_num += 1
                 #get data from batch
                 x = data.x.to(self.cuda_device)
