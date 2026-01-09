@@ -36,7 +36,7 @@ trainer = dict(
         type='TGDataLoader',
         batch_size=256,
         shuffle=True,
-        num_workers=6
+        num_workers=18
     ),
     dataset_path = generated_dataset["generated_dataset_path"],
     node_directory=generated_dataset["input_encoding_folder"],

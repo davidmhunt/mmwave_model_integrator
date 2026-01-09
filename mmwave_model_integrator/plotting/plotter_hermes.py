@@ -321,17 +321,18 @@ class PlotterHermes(_Plotter):
                     gt_encoding=gt_encoding,
                     hermes_gt_encoder=ground_truth_encoder,
                     cmap="binary",
-                    ax=axs[0,2],
+                    ax=axs[1,0],
                     show=False
                 )
+                axs[1,0].set_title("Ground Truth Encoding",fontsize=self.font_size_title)
 
                 original_gt_pc = ground_truth_encoder.grid_to_points(
                     ground_truth_encoder.original_gt_encoding)
                 self.plot_gt_pc(
                     point_cloud=original_gt_pc,
                     gt_encoder=ground_truth_encoder,
-                    ax=axs[1,2],
-                    title="Original Ground Truth Point Cloud",
+                    ax=axs[1,1],
+                    title="LiDAR Point Cloud",
                     show=False
                 )
 
@@ -354,7 +355,7 @@ class PlotterHermes(_Plotter):
                 self.plot_predicted_pc(
                     point_cloud=pc,
                     hermes_decoder=decoder,
-                    ax=axs[1,1],
+                    ax=axs[1,2],
                     title="Predicted Point Cloud",
                     show=False
                 )

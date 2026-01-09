@@ -104,8 +104,11 @@ class GNNTorchTrainer(_BaseTorchTrainer):
             #initialize total training and validation loss
             total_train_loss = 0
             total_val_loss = 0
+            batch_num = 0
 
             for data in self.train_data_loader:
+                print("Batch {}".format(batch_num))
+                batch_num += 1
                 #get data from batch
                 x = data.x.to(self.cuda_device)
                 edge_index = data.edge_index.to(self.cuda_device)
