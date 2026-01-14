@@ -15,6 +15,9 @@ class RadarDynamicClassifier(torch.nn.Module):
         super(RadarDynamicClassifier, self).__init__()
         self.k = k
 
+        #input batch normalization (unused for now)
+        self.input_norm = nn.BatchNorm1d(in_channels)
+
         # --- Layer 1: Input (x,y,z,t) -> 64 features ---
         # DynamicEdgeConv expects an MLP that processes: cat(x_i, x_j - x_i)
         # Input dim is therefore in_channels * 2
@@ -65,7 +68,7 @@ class RadarDynamicClassifier(torch.nn.Module):
             batch: [Num_Points] tensor indicating which cloud the point belongs to
                    (Required for DynamicEdgeConv to not link points across different samples)
         """
-        
+
         # 1. Feature Extraction (Layer 1)
         # DynamicEdgeConv computes the k-NN graph internally on the GPU
         x1 = self.conv1(x, batch)

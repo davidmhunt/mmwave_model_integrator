@@ -23,6 +23,9 @@ class _GnnNodeDataset(Dataset):
                  node_value_preturbation_sigma=0.05,
                  enable_x_y_position_preturbations=False,
                  enable_cylindrical_encoding=False,
+                 enable_downsampling=False,
+                 downsample_keep_ratio=0.5,
+                 downsample_min_points=100,
                  transforms: list = None):
         """Initialize the segmentation dataset with mandatory list-based transforms.
 
@@ -57,6 +60,9 @@ class _GnnNodeDataset(Dataset):
             enable_cylindrical_encoding (bool,optional): On true,
                 graph features are additionally encoded in cylindrical coordinates (r,theta,z)
                 instead of cartesian coordinates (x,y,z)
+            enable_downsampling (bool, optional): On true, randomly downsamples the pointcloud. Defaults to False.
+            downsample_keep_ratio (float, optional): The ratio of points to keep when downsampling. Defaults to 0.5.
+            downsample_min_points (int, optional): The minimum number of points to keep when downsampling. Defaults to 100.
         """
         self.node_paths = node_paths
         self.label_paths = label_paths
@@ -86,6 +92,11 @@ class _GnnNodeDataset(Dataset):
         self.node_value_preturbation_sigma = node_value_preturbation_sigma
         self.enable_x_y_position_preturbations=enable_x_y_position_preturbations
         self.enable_cylindrical_encoding = enable_cylindrical_encoding
+        
+        #downsampling parameters
+        self.enable_downsampling = enable_downsampling
+        self.downsample_keep_ratio = downsample_keep_ratio
+        self.downsample_min_points = downsample_min_points
     ####################################################################
     #Torch Dataset core functions
     #################################################################### 
@@ -111,12 +122,14 @@ class _GnnNodeDataset(Dataset):
         y = torch.tensor(labels, dtype=torch.float32)
 
         #keep only a certain percentage:
-        x,y = self.percentage_downsample(
-            x=x,
-            y=y,
-            keep_ratio=0.5,
-            min_points=100
-        )
+        #keep only a certain percentage:
+        if self.enable_downsampling:
+             x,y = self.percentage_downsample(
+                 x=x,
+                 y=y,
+                 keep_ratio=self.downsample_keep_ratio,
+                 min_points=self.downsample_min_points
+             )
 
         
 
@@ -308,14 +321,7 @@ class _GnnNodeDataset(Dataset):
                 pc_cart
             )
 
-
-        else:
-            raise ValueError("pc_random_yaw_rotate: input points must be an Nx3 array of points.")
     
-    import torch
-
-    import torch
-
     def percentage_downsample(self,x, y, keep_ratio=0.5, min_points=100):
         """
         Randomly downsamples points and their corresponding labels synchronously.

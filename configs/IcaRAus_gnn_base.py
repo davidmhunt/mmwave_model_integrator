@@ -1,3 +1,5 @@
+import torch
+
 model = dict(
     type='RadarDynamicClassifier',
     in_channels = 4,
@@ -22,7 +24,8 @@ trainer = dict(
     ),
 
     loss_fn = dict(
-        type='BCEWithLogitsLoss'
+        type='BCEWithLogitsLoss',
+        # pos_weight=torch.tensor([20.0])
     ),
     dataset = dict(
         type='_GnnNodeDataset',
@@ -48,7 +51,7 @@ trainer = dict(
     label_directory=generated_dataset["ground_truth_encoding_folder"],
     val_split = 0.25,
     working_dir = "working_dir",
-    save_name = "DynamicEdgeConv_{}".format(config_label),
+    save_name = "DynamicEdgeConv_{}_norm_frame".format(config_label),
     epochs = 13,
     pretrained_state_dict_path=None,
     cuda_device="cuda:0",
