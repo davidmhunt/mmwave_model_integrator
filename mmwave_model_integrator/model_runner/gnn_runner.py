@@ -14,9 +14,11 @@ class GNNRunner(_ModelRunner):
             model, 
             state_dict_path, 
             cuda_device="cuda:0",
+            use_sigmoid=True,
             edge_radius=5.0):
         
         self.edge_radius = edge_radius
+        self.use_sigmoid = use_sigmoid
 
         super().__init__(model, state_dict_path, cuda_device)
 

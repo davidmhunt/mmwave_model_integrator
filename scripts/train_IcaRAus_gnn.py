@@ -1,0 +1,51 @@
+import sys
+import os
+import matplotlib.pyplot as plt
+import numpy as np
+
+from mmwave_model_integrator.config import Config
+import mmwave_model_integrator.torch_training.trainers as trainers
+
+from dotenv import load_dotenv
+load_dotenv("../.env")
+DATASET_PATH=os.getenv("DATASET_DIRECTORY")
+DATASET_PATH=os.path.join("/data/radnav/radnav_model_datasets")
+MODEL_TRAINING_DATASET_PATH=os.getenv("MODEL_TRAINING_DATASET_PATH")
+GENERATED_DATASETS_PATH=os.getenv("GENERATED_DATASETS_PATH")
+
+
+sys.path.append("../")
+from cpsl_datasets.gnn_node_ds import GnnNodeDS
+
+from mmwave_model_integrator.input_encoders._node_encoder import _NodeEncoder
+from mmwave_model_integrator.ground_truth_encoders._gt_node_encoder import _GTNodeEncoder
+from mmwave_model_integrator.plotting.plotter_gnn_pc_processing import PlotterGnnPCProcessing
+
+#initialize the dataset
+config_label = "IcaRAus_gnn_100fh"
+
+dataset_path = os.path.join(DATASET_PATH,"{}_train".format(config_label))
+dataset = GnnNodeDS(
+    dataset_path=dataset_path,
+    node_folder="nodes",
+    label_folder="labels"
+)
+print(dataset_path)
+
+#initialize the encoder and decoder
+input_encoder = _NodeEncoder()
+ground_truth_encoder = _GTNodeEncoder()
+plotter = PlotterGnnPCProcessing()
+
+
+# config_path = "../configs/RaGNNarok/RaGNNarok_uav.py"
+config_path = "../configs/IcaRAus_gnn_base.py"
+config = Config(config_path)
+
+config.print_config()
+
+trainer_config = config.trainer
+trainer_class = getattr(trainers,trainer_config.pop('type'))
+trainer = trainer_class(**trainer_config)
+
+trainer.train_model()

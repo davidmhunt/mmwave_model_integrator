@@ -24,7 +24,7 @@ class EdgeConvGNNClassifier(torch.nn.Module):
             torch.nn.Sigmoid()  # Output a probability between 0 and 1
         ))
 
-    def forward(self, x, edge_index, edge_attr, **kwargs):
+    def forward(self, x, edge_index, edge_attr):
         # Perform edge convolution (message passing)
         x1 = self.conv1(x, edge_index, edge_attr)  # Use node features and edge features (edge_attr)
         x1 = F.relu(x1)

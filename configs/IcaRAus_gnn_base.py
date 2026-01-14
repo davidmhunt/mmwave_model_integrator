@@ -1,15 +1,16 @@
 model = dict(
-    type='SageGNNClassifier',
+    type='RadarDynamicClassifier',
     in_channels = 4,
-    hidden_channels=16,
-    out_channels=1
+    hidden_channels=32,
+    out_channels=1,
+    k=10
 )
-config_label = "IcaRAus_gnn_base_100fh"
+config_label = "IcaRAus_gnn_100fh"
 
 generated_dataset = dict(
     input_encoding_folder="nodes",
     ground_truth_encoding_folder="labels",
-    generated_dataset_path="/data/radnav/radnadv_model_datasets/{}_train".format(config_label)
+    generated_dataset_path="/data/radnav/radnav_model_datasets/{}_train".format(config_label)
 )
 
 trainer = dict(
@@ -27,6 +28,8 @@ trainer = dict(
         type='_GnnNodeDataset',
         edge_radius=10.0,
         transforms=[],
+        enable_edge_attr=False,
+        enable_edge_index=False,
         enable_random_yaw_rotate=True,
         enable_occupancy_grid_preturbations=False,
         enable_node_value_preturbations=True,
@@ -36,7 +39,7 @@ trainer = dict(
     ),
     data_loader = dict(
         type='TGDataLoader',
-        batch_size=256,
+        batch_size=64,
         shuffle=True,
         num_workers=18
     ),

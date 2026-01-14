@@ -1,13 +1,18 @@
 import os
 import time
+import inspect
 from tqdm import tqdm
 import torch
 from sklearn.model_selection import train_test_split
 from torch_geometric.loader import DataLoader
 from torch_geometric.data import Data
+from torch_geometric.nn import DataParallel as PyG_DataParallel
 
 from mmwave_model_integrator.torch_training.trainers._base_torch_trainer import _BaseTorchTrainer
 import mmwave_model_integrator.torch_training.datasets as datasets
+import mmwave_model_integrator.torch_training.models as models
+import mmwave_model_integrator.torch_training.optimizers as optimizers
+
 
 
 
@@ -71,6 +76,12 @@ class GNNTorchTrainer(_BaseTorchTrainer):
             cuda_device=cuda_device,
             multiple_GPUs=multiple_GPUs
         )
+        
+        #inspect the model to determine the input arguments
+        if isinstance(self.model, PyG_DataParallel):
+             self.forward_signature = inspect.signature(self.model.module.forward)
+        else:
+             self.forward_signature = inspect.signature(self.model.forward)
     
     def _init_datasets(self, dataset: dict) -> None:
         """Initializes the training and validation datasets.
@@ -138,22 +149,21 @@ class GNNTorchTrainer(_BaseTorchTrainer):
             total_val_loss = 0
             batch_num = 0
 
-            for data in self.train_data_loader:
-                batch_num += 1
+            for data in tqdm(self.train_data_loader, desc="Training", leave=False):
                 
-                #make the prediction using the helper function
+                # make the prediction using the helper function
                 pred, y = self.make_prediction(data)
                 
-                loss = self.loss_fn(pred.squeeze(),y) #may need to squeeze prediction
+                loss = self.loss_fn(pred.squeeze(), y) # may need to squeeze prediction
 
-                #zero out any previously accumulated gradients, perform back propagation, update model parameters
+                # zero out any previously accumulated gradients, perform back propagation, update model parameters
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
 
-                #add the loss to the total loss
-                total_train_loss += loss
-
+                # add the loss to the total loss
+                total_train_loss += loss.item()
+                
             #switch off autograd
             with torch.no_grad():
 
@@ -166,7 +176,7 @@ class GNNTorchTrainer(_BaseTorchTrainer):
                     #make the prediction using the helper function
                     pred, y = self.make_prediction(data)
                     
-                    loss = self.loss_fn(pred.squeeze(),y) #may need to squeeze prediction
+                    loss = self.loss_fn(pred.squeeze(-1),y) #may need to squeeze prediction
 
                     #add the loss to the total loss
                     total_val_loss += loss
@@ -176,8 +186,15 @@ class GNNTorchTrainer(_BaseTorchTrainer):
             avg_val_loss = total_val_loss / self.test_steps
 
             #update training history
-            self.history["train_loss"].append(avg_train_loss.cpu().detach().numpy())
-            self.history["val_loss"].append(avg_val_loss.cpu().detach().numpy())
+            if isinstance(avg_train_loss, torch.Tensor):
+                self.history["train_loss"].append(avg_train_loss.cpu().detach().numpy())
+            else:
+                 self.history["train_loss"].append(avg_train_loss)
+            
+            if isinstance(avg_val_loss, torch.Tensor):
+                self.history["val_loss"].append(avg_val_loss.cpu().detach().numpy())
+            else:
+                 self.history["val_loss"].append(avg_val_loss)
 
             print("EPOCH: {}/{}".format(epoch + 1, self.epochs))
             print("\t Train loss: {}, Val loss:{}".format(avg_train_loss,avg_val_loss))
@@ -196,6 +213,50 @@ class GNNTorchTrainer(_BaseTorchTrainer):
         
         #plot the results
         self.save_result_fig()
+
+    def _init_model(self,model_config:dict,optimizer_config:dict):
+        """Initialize the model, pretrained weights, optimizer, and send it
+        to the cuda device
+
+        Args:
+            model (dict): _description_
+            optimizer (dict): _description_
+        """
+        #determine the model
+        model_class = getattr(models,model_config['type'])
+        model_config.pop('type')
+        self.model = model_class(**model_config)
+
+        #configure for multiple GPUs if set
+        if self.multiple_GPUs and torch.cuda.is_available() and \
+            (torch.cuda.device_count() > 1):
+
+            self.model = PyG_DataParallel(self.model)
+            print("Trainer._init_model: using {} GPUs".format(
+                torch.cuda.device_count()))
+        
+        #load pretrained weights if available
+        if self.pretrained_state_dict_path:
+            if self.cuda_device != 'cpu':
+                self.model.load_state_dict(
+                    torch.load(self.pretrained_state_dict_path,
+                               weights_only=True)
+                )
+            else:
+                self.model.load_state_dict(
+                    torch.load(self.pretrained_state_dict_path,
+                               weights_only=True,
+                               map_location='cpu')
+                )
+
+        #send the model to the cuda device
+        self.model.to(self.cuda_device)
+
+        #set the optimizer
+        optimizer_class = getattr(optimizers,optimizer_config['type'])
+        optimizer_config.pop('type')
+        optimizer_config["params"] = self.model.parameters()
+        self.optimizer = optimizer_class(**optimizer_config)
     
     def make_prediction(self, data: Data) -> tuple[torch.Tensor, torch.Tensor]:
         """Makes a prediction for a single batch of GNN data.
@@ -207,19 +268,21 @@ class GNNTorchTrainer(_BaseTorchTrainer):
             tuple[torch.Tensor, torch.Tensor]: A tuple containing (prediction, ground_truth_labels).
         """
 
-        #access the necessary data and move to device
-        x = data.x.to(self.cuda_device)
-        edge_index = data.edge_index.to(self.cuda_device)
-        edge_attr = data.edge_attr.to(self.cuda_device)
-        batch=data.batch.to(self.cuda_device)
-        y = data.y.to(self.cuda_device)
+        #get the arguments for the forward pass
+        model_args = {}
+        for param in self.forward_signature.parameters.values():
+            if param.name in data:
+                model_args[param.name] = data[param.name].to(self.cuda_device)
+        
+        #always add x
+        if "x" not in model_args:
+             model_args["x"] = data.x.to(self.cuda_device)
 
         #make the prediction
-        pred = self.model(
-            x=x,
-            edge_index=edge_index,
-            edge_attr=edge_attr,
-            batch=batch)
+        pred = self.model(**model_args)
+
+        #get the labels
+        y = data.y.to(self.cuda_device)
 
         return pred, y
 

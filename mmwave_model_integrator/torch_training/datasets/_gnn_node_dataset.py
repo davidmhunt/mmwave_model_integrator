@@ -15,6 +15,8 @@ class _GnnNodeDataset(Dataset):
                  node_paths: list,
                  label_paths: list,
                  edge_radius: float = 5.0,
+                 enable_edge_attr:bool=True,
+                 enable_edge_index:bool=True,
                  enable_random_yaw_rotate=False,
                  enable_occupancy_grid_preturbations=False,
                  enable_node_value_preturbations=False,
@@ -29,6 +31,13 @@ class _GnnNodeDataset(Dataset):
             label_paths (list): List of paths to each label file
             edge_radius (float, optional): The radius to use when clustering the nodes
             transforms (list,optional): List of dictionaries used to configure transforms. Defaults to None
+            enable_edge_attr (bool,optional): On true, compute edge attributes 
+                (euclidian norm between nodes) and returns them as part of the
+                returned Data object. Only performed if enable_edge_index
+                is also True. Defaults to True
+            enable_edge_index (bool, optional): On true, computes the edge index 
+                using torch geometric radius_graph and returns it as part of the 
+                returned Data object. Defaults to True
             enable_random_yaw_rotate (bool,optional): On true, applies random yaw
                 roations to data. Defaults to False
             enable_occupancy_grid_preturbations (bool,optional): On true, 
@@ -66,6 +75,10 @@ class _GnnNodeDataset(Dataset):
         else:
             self.transforms = None
         
+        #statuses for graph computations
+        self.enable_edge_attr = enable_edge_attr
+        self.enable_edge_index = enable_edge_index
+
         #statuses for data augmentations
         self.enable_random_yaw_rotate=enable_random_yaw_rotate
         self.enable_occupancy_grid_preturbations=enable_occupancy_grid_preturbations
@@ -94,30 +107,37 @@ class _GnnNodeDataset(Dataset):
         # Convert to PyTorch tensors
         x = torch.tensor(nodes, dtype=torch.float32)
 
-        # Compute the edges using radius_graph (only x, y coordinates)
-        edge_index = radius_graph(x[:, :2], r=self.edge_radius, loop=False)
-
-        # Compute edge attributes (Euclidean distance between nodes)
-        # --- NEW FAST WAY ---
-        # row contains indices of source nodes, col contains indices of target nodes
-        row, col = edge_index
-
-        # Vectorized lookup: Get all source coordinates and all target coordinates at once
-        src_pos = x[row, :2]
-        dst_pos = x[col, :2]
-
-        # Compute Euclidean distance for all edges in one C++ operation
-        edge_attr = (src_pos - dst_pos).norm(dim=1)
-        # edge_attr = []
-        # for i, j in edge_index.t():  # Iterate over edge pairs (i, j)
-        #     dist = torch.norm(x[i, :2] - x[j, :2])  # Euclidean distance in 2D (x, y)
-        #     edge_attr.append(dist)
-
-        # edge_attr = torch.tensor(edge_attr, dtype=torch.float32)  # Convert to tensor
-
         # Convert labels to tensor
         y = torch.tensor(labels, dtype=torch.float32)
 
+        #keep only a certain percentage:
+        x,y = self.percentage_downsample(
+            x=x,
+            y=y,
+            keep_ratio=0.5,
+            min_points=100
+        )
+
+        
+
+        edge_index = None
+        if self.enable_edge_index:
+            # Compute the edges using radius_graph (only x, y coordinates)
+            edge_index = radius_graph(x[:, :2], r=self.edge_radius, loop=False)
+
+        edge_attr = None
+        if self.enable_edge_attr and edge_index is not None:
+            # Compute edge attributes (Euclidean distance between nodes)
+            # row contains indices of source nodes, col contains indices of target nodes
+            row, col = edge_index
+
+            # Vectorized lookup: Get all source coordinates and all target coordinates at once
+            src_pos = x[row, :2]
+            dst_pos = x[col, :2]
+
+            # Compute Euclidean distance for all edges in one C++ operation
+            edge_attr = (src_pos - dst_pos).norm(dim=1)
+            
         # Create a PyTorch Geometric Data object with edge attributes
         data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr, y=y)
 
@@ -291,3 +311,38 @@ class _GnnNodeDataset(Dataset):
 
         else:
             raise ValueError("pc_random_yaw_rotate: input points must be an Nx3 array of points.")
+    
+    import torch
+
+    import torch
+
+    def percentage_downsample(self,x, y, keep_ratio=0.5, min_points=100):
+        """
+        Randomly downsamples points and their corresponding labels synchronously.
+        
+        Args:
+            x (Tensor): Node features [Num_Points, Features]
+            y (Tensor): Node labels   [Num_Points] or [Num_Points, Label_Dim]
+            keep_ratio (float): Fraction of points to keep (0.0 to 1.0)
+            min_points (int): Minimum number of points to preserve.
+            
+        Returns:
+            tuple: (downsampled_x, downsampled_y)
+        """
+        num_points = x.shape[0]
+        
+        # 1. Calculate Target Count
+        target_count = int(num_points * keep_ratio)
+        target_count = max(target_count, min_points)
+        final_count = min(num_points, target_count)
+        
+        # 2. Random Sampling (Synchronized)
+        if final_count < num_points:
+            # Generate the random indices ONE time
+            choice = torch.randperm(num_points)[:final_count]
+            
+            # Apply the SAME indices to both x and y
+            x = x[choice]
+            y = y[choice]
+        
+        return x, y
