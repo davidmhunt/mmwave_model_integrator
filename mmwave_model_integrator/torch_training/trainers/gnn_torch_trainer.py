@@ -4,29 +4,55 @@ from tqdm import tqdm
 import torch
 from sklearn.model_selection import train_test_split
 from torch_geometric.loader import DataLoader
+from torch_geometric.data import Data
 
 from mmwave_model_integrator.torch_training.trainers._base_torch_trainer import _BaseTorchTrainer
 import mmwave_model_integrator.torch_training.datasets as datasets
 
 
+
 class GNNTorchTrainer(_BaseTorchTrainer):
+    """Trainer class for Graph Neural Networks using PyTorch Geometric.
+
+    This class extends _BaseTorchTrainer to handle GNN-specific data structures
+    and training loops.
+    """
 
     def __init__(self,
-                 model:dict,
-                 optimizer:dict,
-                 dataset:dict,
-                 data_loader:dict,
-                 dataset_path:str,
-                 node_directory:str,
-                 label_directory:str,
-                 val_split:float,
-                 working_dir:str,
-                 save_name:str,
-                 loss_fn:dict,
-                 epochs = 40,
-                 pretrained_state_dict_path:str = None,
-                 cuda_device:str = "cuda:0",
-                 multiple_GPUs = False):
+                 model: dict,
+                 optimizer: dict,
+                 dataset: dict,
+                 data_loader: dict,
+                 dataset_path: str,
+                 node_directory: str,
+                 label_directory: str,
+                 val_split: float,
+                 working_dir: str,
+                 save_name: str,
+                 loss_fn: dict,
+                 epochs: int = 40,
+                 pretrained_state_dict_path: str = None,
+                 cuda_device: str = "cuda:0",
+                 multiple_GPUs: bool = False) -> None:
+        """Initializes the GNNTorchTrainer.
+
+        Args:
+            model (dict): Configuration dictionary for the GNN model.
+            optimizer (dict): Configuration dictionary for the optimizer.
+            dataset (dict): Configuration dictionary for the dataset.
+            data_loader (dict): Configuration dictionary for the data loader.
+            dataset_path (str): Path to the root directory of the dataset.
+            node_directory (str): Subdirectory containing node features.
+            label_directory (str): Subdirectory containing labels.
+            val_split (float): Fraction of data to use for validation.
+            working_dir (str): Directory to save model checkpoints and logs.
+            save_name (str): Name used for saving the model.
+            loss_fn (dict): Configuration dictionary for the loss function.
+            epochs (int, optional): Number of training epochs. Defaults to 40.
+            pretrained_state_dict_path (str, optional): Path to pretrained model weights. Defaults to None.
+            cuda_device (str, optional): CUDA device to use. Defaults to "cuda:0".
+            multiple_GPUs (bool, optional): Whether to use multiple GPUs if available. Defaults to False.
+        """
         
         super().__init__(
             model=model,
@@ -46,7 +72,12 @@ class GNNTorchTrainer(_BaseTorchTrainer):
             multiple_GPUs=multiple_GPUs
         )
     
-    def _init_datasets(self, dataset):
+    def _init_datasets(self, dataset: dict) -> None:
+        """Initializes the training and validation datasets.
+
+        Args:
+            dataset (dict): Configuration dictionary for the dataset.
+        """
 
         #get a list of the input and output files
         input_files = sorted(os.listdir(os.path.join(self.dataset_path,self.input_directory)))
@@ -87,7 +118,8 @@ class GNNTorchTrainer(_BaseTorchTrainer):
         
         return
     
-    def train_model(self):
+    def train_model(self) -> None:
+        """Trains the GNN model using the initialized datasets and parameters."""
 
         print("ModelTrainer.train: training the network...")
         start_time = time.time()
@@ -108,13 +140,10 @@ class GNNTorchTrainer(_BaseTorchTrainer):
 
             for data in self.train_data_loader:
                 batch_num += 1
-                #get data from batch
-                x = data.x.to(self.cuda_device)
-                edge_index = data.edge_index.to(self.cuda_device)
-                y = data.y.to(self.cuda_device)
-
-                #perform the forard pass
-                pred = self.model(x,edge_index)
+                
+                #make the prediction using the helper function
+                pred, y = self.make_prediction(data)
+                
                 loss = self.loss_fn(pred.squeeze(),y) #may need to squeeze prediction
 
                 #zero out any previously accumulated gradients, perform back propagation, update model parameters
@@ -133,13 +162,10 @@ class GNNTorchTrainer(_BaseTorchTrainer):
 
                 #loop over validation set
                 for data in self.val_data_loader:
-                    #get data from batch
-                    x = data.x.to(self.cuda_device)
-                    edge_index = data.edge_index.to(self.cuda_device)
-                    y = data.y.to(self.cuda_device)
-
-                    #perform the forard pass
-                    pred = self.model(x,edge_index)
+                    
+                    #make the prediction using the helper function
+                    pred, y = self.make_prediction(data)
+                    
                     loss = self.loss_fn(pred.squeeze(),y) #may need to squeeze prediction
 
                     #add the loss to the total loss
@@ -170,3 +196,25 @@ class GNNTorchTrainer(_BaseTorchTrainer):
         
         #plot the results
         self.save_result_fig()
+    
+    def make_prediction(self, data: Data) -> tuple[torch.Tensor, torch.Tensor]:
+        """Makes a prediction for a single batch of GNN data.
+
+        Args:
+            data (Data): PyTorch Geometric Data object containing node features, edge index, and labels.
+
+        Returns:
+            tuple[torch.Tensor, torch.Tensor]: A tuple containing (prediction, ground_truth_labels).
+        """
+
+        #access the necessary data and move to device
+        x = data.x.to(self.cuda_device)
+        edge_index = data.edge_index.to(self.cuda_device)
+        y = data.y.to(self.cuda_device)
+
+        #make the prediction
+        pred = self.model(x,edge_index)
+
+        return pred, y
+
+
