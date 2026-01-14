@@ -17,6 +17,8 @@ class _GnnNodeDataset(Dataset):
                  edge_radius: float = 5.0,
                  enable_random_yaw_rotate=False,
                  enable_occupancy_grid_preturbations=False,
+                 enable_node_value_preturbations=False,
+                 node_value_preturbation_sigma=0.05,
                  enable_x_y_position_preturbations=False,
                  enable_cylindrical_encoding=False,
                  transforms: list = None):
@@ -30,8 +32,16 @@ class _GnnNodeDataset(Dataset):
             enable_random_yaw_rotate (bool,optional): On true, applies random yaw
                 roations to data. Defaults to False
             enable_occupancy_grid_preturbations (bool,optional): On true, 
-                applies random preturbations to the occupancy grid. Defaults
+                applies random preturbations to the occupancy grid value
+                for each node (stored in the 4th column). Defaults
                 to False
+            enable_node_value_preturbations (bool,optional): On true,
+                applies random preturbations to all columns other than the
+                columns containing the cartesian position of the node.
+                Defaults to False
+            node_value_preturbation_sigma (bool,optional): The sigma value
+                to applie to the random node value preturbations. Defaults
+                to 0.05
             enable_x_y_position_preturbations (bool,optional): On true, 
                 applies random preturbations to the x,y position of each node
                 in the grid. Defaults to False,
@@ -59,6 +69,8 @@ class _GnnNodeDataset(Dataset):
         #statuses for data augmentations
         self.enable_random_yaw_rotate=enable_random_yaw_rotate
         self.enable_occupancy_grid_preturbations=enable_occupancy_grid_preturbations
+        self.enable_node_value_preturbations = enable_node_value_preturbations
+        self.node_value_preturbation_sigma = node_value_preturbation_sigma
         self.enable_x_y_position_preturbations=enable_x_y_position_preturbations
         self.enable_cylindrical_encoding = enable_cylindrical_encoding
     ####################################################################
@@ -137,6 +149,10 @@ class _GnnNodeDataset(Dataset):
                 probabilities=nodes[:,3],
                 sigma=0.05
             )
+        if self.enable_node_value_preturbations:
+            nodes[:,3:] = self.preturb_node_values(
+                node_values=nodes[:,3:]
+            )
         if self.enable_x_y_position_preturbations:
             nodes[:,0:3] = self.preturb_pc_x_y_positions(nodes[:,0:3])
 
@@ -198,6 +214,27 @@ class _GnnNodeDataset(Dataset):
             )
         
         return np.clip(probabilities + perturbations,a_min=0.05,a_max=1.0)
+    
+    def preturb_node_values(
+            self,
+            node_values:np.ndarray)->np.ndarray:
+        """Apply a random preturbation to a given set of node values
+
+        Args:
+            node_values (np.ndarray): ndarray or node values to preturb
+            sigma (float, optional): standard deviation of preturbations to apply. Defaults to 0.05.
+
+        Returns:
+            np.ndarray: occupancy grid probabilities with preturbations applied
+        """
+        rng = np.random.default_rng()
+        perturbations = rng.normal(
+            loc=0,
+            scale=self.node_value_preturbation_sigma,
+            size=node_values.shape
+            )
+        
+        return np.clip(node_values + perturbations,a_min=0.05,a_max=1.0)
 
 
     def preturb_pc_x_y_positions(

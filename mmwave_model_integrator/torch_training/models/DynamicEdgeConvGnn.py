@@ -58,7 +58,7 @@ class RadarDynamicClassifier(torch.nn.Module):
             nn.Linear(128, out_channels)
         )
 
-    def forward(self, x, batch=None):
+    def forward(self, x, batch=None, **kwargs):
         """
         Args:
             x: [Num_Points, 4] tensor (x,y,z,time)

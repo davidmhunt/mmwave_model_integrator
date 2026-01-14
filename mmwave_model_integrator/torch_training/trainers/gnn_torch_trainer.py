@@ -210,10 +210,16 @@ class GNNTorchTrainer(_BaseTorchTrainer):
         #access the necessary data and move to device
         x = data.x.to(self.cuda_device)
         edge_index = data.edge_index.to(self.cuda_device)
+        edge_attr = data.edge_attr.to(self.cuda_device)
+        batch=data.batch.to(self.cuda_device)
         y = data.y.to(self.cuda_device)
 
         #make the prediction
-        pred = self.model(x,edge_index)
+        pred = self.model(
+            x=x,
+            edge_index=edge_index,
+            edge_attr=edge_attr,
+            batch=batch)
 
         return pred, y
 
