@@ -4,14 +4,32 @@ import torch.nn.functional as F
 from torch_geometric.nn import DynamicEdgeConv
 
 class SequentialDynamicEdgeConv(torch.nn.Module):
+    """
+    A Sequential Dynamic Edge Convolution Graph Neural Network.
+
+    This model progressively extracts features from point cloud data using dynamic graph construction.
+    It builds a k-NN graph in feature space at multiple layers to learn both local geometry and 
+    higher-level semantic features.
+
+    Architecture:
+        1. Input Normalization (BatchNorm)
+        2. DynamicEdgeConv Layer 1 (Geometry extraction)
+        3. DynamicEdgeConv Layer 2 (Semantic feature extraction, re-computed graph)
+        4. Skip Connections (Concatenation of Layer 1 & 2)
+        5. MLP Classifier with Dropout
+    """
     def __init__(self, in_channels=4, hidden_channels=64, out_channels=1, k=20, dropout=0.5, **kwargs):
         """
+        Initializes the SequentialDynamicEdgeConv model.
+
         Args:
-            in_channels: 4 (x, y, z, time_decay)
-            hidden_channels: Size of internal embedding
-            out_channels: 1 (Probability of being valid)
-            k: Number of neighbors to consider (20-30 is standard for point clouds)
-            dropout: amount of dropout to use during training
+            in_channels (int): Number of input features per point (e.g., 4 for x, y, z, time).
+            hidden_channels (int): Dimension of the internal feature embeddings.
+            out_channels (int): Number of output classes (e.g., 1 for probability).
+            k (int): Number of nearest neighbors to consider in the dynamic graph. 
+                     Standard values for point clouds are 20-30.
+            dropout (float): Dropout probability used in the final classifier layer for regularization.
+            **kwargs: Additional keyword arguments (unused).
         """
         super(SequentialDynamicEdgeConv, self).__init__()
         self.k = k
@@ -64,10 +82,15 @@ class SequentialDynamicEdgeConv(torch.nn.Module):
 
     def forward(self, x, batch=None):
         """
+        Forward pass of the model.
+
         Args:
-            x: [Num_Points, 4] tensor (x,y,z,time)
-            batch: [Num_Points] tensor indicating which cloud the point belongs to
-                   (Required for DynamicEdgeConv to not link points across different samples)
+            x (torch.Tensor): Input node features of shape [Num_Points, in_channels].
+            batch (torch.Tensor, optional): Batch vector of shape [Num_Points] indicating 
+                                            which sample each point belongs to.
+
+        Returns:
+            torch.Tensor: Output logits of shape [Num_Points, out_channels].
         """
 
         #1. Take the batch norm of the dataset

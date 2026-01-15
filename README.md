@@ -143,3 +143,36 @@ MODEL_TRAINING_DATASET_PATH=/data/RadCloud_public
 ```
 https://drive.google.com/file/d/1JorZEkDCIcQDSaMAabvkQX4scvwj0wzn/view?usp=sharing
 ```
+
+## Hyperparameter Optimization
+
+The `scripts/tuning/optimize_IcaRAus_gnn.py` script allows you to automatically tune hyperparameters (such as `k`, `hidden_channels`, `learning_rate`, and `dropout`) using Optuna.
+
+### Running Optimization
+
+1. Navigate to the project root directory.
+2. Run the optimization script using Poetry:
+   ```bash
+   poetry run python submodules/mmwave_model_integrator/scripts/tuning/optimize_IcaRAus_gnn.py
+   ```
+   *Note: Ensure you run this from the root `odometry` directory so that relative paths in the configuration work correctly.*
+
+### Visualizing Results (Optuna Dashboard)
+
+To visualize the optimization progress in real-time with `optuna-dashboard`:
+
+1.  **Start the Dashboard**:
+    Run the following command from the project root:
+    ```bash
+    optuna-dashboard sqlite:///submodules/mmwave_model_integrator/scripts/tuning/tuning_logs/optuna.db
+    ```
+    This will start the dashboard server (usually on `http://127.0.0.1:8080`).
+
+2.  **Accessing via SSH (Remote Machine)**:
+    If you are running the optimization on a remote server, you need to forward the port to your local machine to view the dashboard.
+    
+    On your **local machine**, run:
+    ```bash
+    ssh -L 8080:127.0.0.1:8080 <your_username>@<remote_host_ip>
+    ```
+    Then, open your web browser and navigate to `http://127.0.0.1:8080`.

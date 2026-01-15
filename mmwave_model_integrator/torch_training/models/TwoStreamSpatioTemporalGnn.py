@@ -3,15 +3,30 @@ import torch.nn as nn
 from torch_geometric.nn import DynamicEdgeConv
 
 class TwoStreamSpatioTemporalGnn(torch.nn.Module):
+    """
+    A Two-Stream Spatio-Temporal Graph Neural Network for radar point cloud processing.
+
+    This model explicitly separates spatial geometry from temporal persistence using two parallel streams:
+    1. Spatial Stream: Processes static 3D geometry (x, y, z) to detect shapes.
+    2. Persistence Stream: Processes 4D data (x, y, z, t) to detect stable features over time.
+
+    The streams are fused later to make a final classification decision.
+    """
     def __init__(self,
         hidden_channels=32,
         out_channels=1,
         k=20,
-        dropout=0.5
+        dropout=0.5,
         **kwargs):
         """
+        Initializes the TwoStreamSpatioTemporalGnn model.
+
         Args:
-            k: 20 (Optimal for capturing local planar structures)
+            hidden_channels (int): Dimension of internal feature embeddings.
+            out_channels (int): Number of output classes (e.g., 1 for binary classification).
+            k (int): Number of neirest neighbors. 20 is typically optimal for capturing local planar structures.
+            dropout (float): Dropout probability for regularization.
+            **kwargs: Additional keyword arguments (unused).
         """
         super().__init__()
         self.k = k
@@ -75,6 +90,16 @@ class TwoStreamSpatioTemporalGnn(torch.nn.Module):
         )
 
     def forward(self, x, batch=None):
+        """
+        Forward pass of the model.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape [Num_Points, 4]. Columns: x, y, z, normalized_frame_time.
+            batch (torch.Tensor, optional): Batch vector indicating sample membership.
+
+        Returns:
+            torch.Tensor: Output logits.
+        """
         # x: [N, 4] -> x, y, z, normalized_frame_time
         
         # --- A. Split & Normalize ---

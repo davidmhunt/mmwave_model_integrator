@@ -241,7 +241,7 @@ class _BaseTorchTrainer:
         self.train_steps = len(self.train_dataset) // self.train_data_loader.batch_size
         self.test_steps = len(self.val_dataset) // self.val_data_loader.batch_size
 
-        for epoch in (tqdm(range(self.epochs))):
+        for epoch in (tqdm(range(self.epochs), desc="Epoch",leave=False)):
             
             #put model into training mode
             self.model.train()

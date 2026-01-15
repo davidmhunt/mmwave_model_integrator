@@ -6,6 +6,7 @@ model = dict(
     hidden_channels=32,
     out_channels=1,
     k=10,
+    dropout=0.5,
     in_channels=None
 )
 config_label = "IcaRAus_TwoStreamSpatioTemporalGnn_100fh"

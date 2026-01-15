@@ -5,6 +5,7 @@ model = dict(
     in_channels = 4,
     hidden_channels=32,
     out_channels=1,
+    dropout=0.5,
     k=10
 )
 config_label = "IcaRAus_SequentialDynamicEdge_100fh"
@@ -45,7 +46,7 @@ trainer = dict(
     ),
     data_loader = dict(
         type='TGDataLoader',
-        batch_size=64,
+        batch_size=50,
         shuffle=True,
         num_workers=18
     ),
@@ -55,7 +56,7 @@ trainer = dict(
     val_split = 0.25,
     working_dir = "working_dir/IcaRAus_gnn",
     save_name = "{}".format(config_label),
-    epochs = 2,
+    epochs = 13,
     pretrained_state_dict_path=None,
     cuda_device="cuda:0",
     multiple_GPUs=False

@@ -10,26 +10,32 @@ import mmwave_model_integrator.torch_training.trainers as trainers
 # Set up paths
 sys.path.append("../")
 
+config_name = "IcaRAus_gnn_two_stream"
+
 def objective(trial):
     # Load base config
-    config_path = "../../configs/IcaRAus_gnn_base.py"
+    config_path = "../../configs/IcaRAus_gnn/{}.py".format(config_name)
     config = Config(config_path)
 
     # Suggest hyperparameters
     k_val = trial.suggest_int("k", 10, 40, step=5)
-    hidden_channels = trial.suggest_categorical("hidden_channels", [16, 32, 64])
+    hidden_channels = trial.suggest_int("hidden_channels",16,32,step=4)
+    # hidden_channels = trial.suggest_categorical("hidden_channels", [16, 24, 32])
     lr = trial.suggest_float("lr", 1e-4, 1e-2, log=True)
     weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
+    dropout = trial.suggest_float("dropout", 0.1, 0.7)
 
     # Override config with trial parameters
     config.model['k'] = k_val
     config.model['hidden_channels'] = hidden_channels
+    config.model['dropout'] = dropout
     config.trainer['optimizer']['lr'] = lr
     config.trainer['optimizer']['weight_decay'] = weight_decay
     
-    # Also update model K inside the trainer config if it's passed separately or used there
+    # Also update model params inside the trainer config if it's passed separately or used there
     config.trainer['model']['k'] = k_val
     config.trainer['model']['hidden_channels'] = hidden_channels
+    config.trainer['model']['dropout'] = dropout
 
     # Unique working directory for this trial
     trial_dir = os.path.join("tuning_logs", f"trial_{trial.number}")
@@ -63,12 +69,28 @@ def objective(trial):
 
 if __name__ == "__main__":
     
+    # Ensure the directory exists for the database
+    log_dir = "tuning_logs"
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+
+    # Database URL for optuna-dashboard support
+    db_url = f"sqlite:///{log_dir}/optuna.db"
+    
     # Create study
     pruner = optuna.pruners.MedianPruner()
-    study = optuna.create_study(direction="minimize", pruner=pruner)
+    study = optuna.create_study(
+        direction="minimize", 
+        pruner=pruner,
+        storage=db_url,
+        study_name="{}_optimization".format(config_name),
+        load_if_exists=True
+    )
+    
+    print(f"Study created. Run dashboard with: optuna-dashboard {db_url}")
     
     # Run optimization
-    study.optimize(objective, n_trials=2)
+    study.optimize(objective, n_trials=50)
 
     # Print best results
     print("Number of finished trials: ", len(study.trials))
