@@ -22,15 +22,8 @@ from mmwave_model_integrator.ground_truth_encoders._gt_node_encoder import _GTNo
 from mmwave_model_integrator.plotting.plotter_gnn_pc_processing import PlotterGnnPCProcessing
 
 #initialize the dataset
-config_label = "IcaRAus_gnn_100fh"
-
-dataset_path = os.path.join(DATASET_PATH,"{}_train".format(config_label))
-dataset = GnnNodeDS(
-    dataset_path=dataset_path,
-    node_folder="nodes",
-    label_folder="labels"
-)
-print(dataset_path)
+# config_label = "IcaRAus_gnn_base"
+config_label = "IcaRAus_gnn_two_stream"
 
 #initialize the encoder and decoder
 input_encoder = _NodeEncoder()
@@ -38,8 +31,7 @@ ground_truth_encoder = _GTNodeEncoder()
 plotter = PlotterGnnPCProcessing()
 
 
-# config_path = "../configs/RaGNNarok/RaGNNarok_uav.py"
-config_path = "../configs/IcaRAus_gnn_base.py"
+config_path = "../configs/IcaRAus_gnn/{}.py".format(config_label)
 config = Config(config_path)
 
 config.print_config()

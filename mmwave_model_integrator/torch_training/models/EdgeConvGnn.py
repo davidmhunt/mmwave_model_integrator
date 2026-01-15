@@ -3,7 +3,7 @@ import torch.nn.functional as F
 from torch_geometric.nn import EdgeConv
 
 class EdgeConvGNNClassifier(torch.nn.Module):
-    def __init__(self, in_channels=4, hidden_channels=16, out_channels=1):
+    def __init__(self, in_channels=4, hidden_channels=16, out_channels=1,**kwargs):
         super(EdgeConvGNNClassifier, self).__init__()
         
         # EdgeConv layer expects a custom neural network to process edge features

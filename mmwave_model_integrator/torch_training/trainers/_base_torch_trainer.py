@@ -17,6 +17,7 @@ import mmwave_model_integrator.torch_training.transforms as transforms
 import mmwave_model_integrator.torch_training.loss_fns as loss_fns
 import mmwave_model_integrator.torch_training.datasets as datasets
 import mmwave_model_integrator.torch_training.data_loaders as data_loaders
+import optuna
 
 class _BaseTorchTrainer:
 
@@ -231,7 +232,7 @@ class _BaseTorchTrainer:
             os.makedirs(path)
         return
     
-    def train_model(self):
+    def train_model(self, trial=None):
 
         print("ModelTrainer.train: training the network...")
         start_time = time.time()
@@ -248,6 +249,7 @@ class _BaseTorchTrainer:
             #initialize total training and validation loss
             total_train_loss = 0
             total_val_loss = 0
+            best_val_loss = float('inf')
             
             for (x,y) in self.train_data_loader:
 
@@ -284,6 +286,10 @@ class _BaseTorchTrainer:
             
             avg_train_loss = total_train_loss / self.train_steps
             avg_val_loss = total_val_loss / self.test_steps
+            
+            # Update best validation loss
+            if avg_val_loss < best_val_loss:
+                best_val_loss = avg_val_loss
 
             #update training history
             self.history["train_loss"].append(avg_train_loss.cpu().detach().numpy())
@@ -292,20 +298,31 @@ class _BaseTorchTrainer:
             print("EPOCH: {}/{}".format(epoch + 1, self.epochs))
             print("\t Train loss: {}, Val loss:{}".format(avg_train_loss,avg_val_loss))
 
-            #save the model
-            file_name = "{}.pth".format(self.save_name)
+            # Optuna integration: Report and Prune
+            if trial:
+                trial.report(avg_val_loss, epoch)
+                if trial.should_prune():
+                    raise optuna.exceptions.TrialPruned()
 
-            #save the state dict
-            if self.multiple_GPUs and torch.cuda.is_available() and (torch.cuda.device_count() > 1):
-                torch.save(self.model.module.state_dict(),os.path.join(self.working_dir,file_name))
-            else:
-                torch.save(self.model.state_dict(), os.path.join(self.working_dir,file_name))
+            # Skip saving if optimizing
+            if trial is None:
+                #save the model
+                file_name = "{}.pth".format(self.save_name)
+
+                #save the state dict
+                if self.multiple_GPUs and torch.cuda.is_available() and (torch.cuda.device_count() > 1):
+                    torch.save(self.model.module.state_dict(),os.path.join(self.working_dir,file_name))
+                else:
+                    torch.save(self.model.state_dict(), os.path.join(self.working_dir,file_name))
 
         end_time = time.time()
         print("ModelTrainer.train: total training time {:.2f}".format(end_time - start_time))
         
         #plot the results
-        self.save_result_fig()
+        if trial is None:
+            self.save_result_fig()
+        
+        return best_val_loss
 
 
     def plot_results(self):

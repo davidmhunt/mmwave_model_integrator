@@ -139,4 +139,4 @@ class GNNRunner(_ModelRunner):
         #ensure x is back on cpu for indexing
         x = x.cpu().detach().numpy()
 
-        return x[pred > 0.01,:]
+        return x[pred > 0.5,:]

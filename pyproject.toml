@@ -31,6 +31,7 @@ radcloud = {path="./submodules/radcloud/", develop = true, optional = true}
 radarhd = {path="./submodules/radarhd/", develop=true, optional = true}
 geometries = {path="./submodules/geometries/",develop=true, optional = true}
 optuna = {extras = ["visualization"], version = "^4.6.0"}
+optuna-dashboard = "^0.20.0"
 
 [tool.poetry.group.torch.dependencies]
 torch = "^2.4.0"

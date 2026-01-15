@@ -12,6 +12,7 @@ from mmwave_model_integrator.torch_training.trainers._base_torch_trainer import 
 import mmwave_model_integrator.torch_training.datasets as datasets
 import mmwave_model_integrator.torch_training.models as models
 import mmwave_model_integrator.torch_training.optimizers as optimizers
+import optuna
 
 
 
@@ -129,7 +130,7 @@ class GNNTorchTrainer(_BaseTorchTrainer):
         
         return
     
-    def train_model(self) -> None:
+    def train_model(self, trial=None) -> float:
         """Trains the GNN model using the initialized datasets and parameters."""
 
         print("ModelTrainer.train: training the network...")
@@ -147,6 +148,7 @@ class GNNTorchTrainer(_BaseTorchTrainer):
             #initialize total training and validation loss
             total_train_loss = 0
             total_val_loss = 0
+            best_val_loss = float('inf')
             batch_num = 0
 
             for data in tqdm(self.train_data_loader, desc="Training", leave=False):
@@ -184,6 +186,10 @@ class GNNTorchTrainer(_BaseTorchTrainer):
             
             avg_train_loss = total_train_loss / self.train_steps
             avg_val_loss = total_val_loss / self.test_steps
+            
+            # Update best validation loss
+            if avg_val_loss < best_val_loss:
+                best_val_loss = avg_val_loss
 
             #update training history
             if isinstance(avg_train_loss, torch.Tensor):
@@ -199,20 +205,30 @@ class GNNTorchTrainer(_BaseTorchTrainer):
             print("EPOCH: {}/{}".format(epoch + 1, self.epochs))
             print("\t Train loss: {}, Val loss:{}".format(avg_train_loss,avg_val_loss))
 
-            #save the model
-            file_name = "{}.pth".format(self.save_name)
+            # Optuna integration: Report and Prune
+            if trial:
+                trial.report(avg_val_loss, epoch)
+                if trial.should_prune():
+                    raise optuna.exceptions.TrialPruned()
 
-            #save the state dict
-            if self.multiple_GPUs and torch.cuda.is_available() and (torch.cuda.device_count() > 1):
-                torch.save(self.model.module.state_dict(),os.path.join(self.working_dir,file_name))
-            else:
-                torch.save(self.model.state_dict(), os.path.join(self.working_dir,file_name))
+            if trial is None:
+                #save the model
+                file_name = "{}.pth".format(self.save_name)
+
+                #save the state dict
+                if self.multiple_GPUs and torch.cuda.is_available() and (torch.cuda.device_count() > 1):
+                    torch.save(self.model.module.state_dict(),os.path.join(self.working_dir,file_name))
+                else:
+                    torch.save(self.model.state_dict(), os.path.join(self.working_dir,file_name))
 
         end_time = time.time()
         print("ModelTrainer.train: total training time {:.2f}".format(end_time - start_time))
         
         #plot the results
-        self.save_result_fig()
+        if trial is None:
+            self.save_result_fig()
+        
+        return best_val_loss
 
     def _init_model(self,model_config:dict,optimizer_config:dict):
         """Initialize the model, pretrained weights, optimizer, and send it
