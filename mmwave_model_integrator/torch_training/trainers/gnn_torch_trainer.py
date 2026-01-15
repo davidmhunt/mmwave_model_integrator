@@ -13,6 +13,10 @@ import mmwave_model_integrator.torch_training.datasets as datasets
 import mmwave_model_integrator.torch_training.models as models
 import mmwave_model_integrator.torch_training.optimizers as optimizers
 import optuna
+try:
+    import wandb
+except ImportError:
+    wandb = None
 
 
 
@@ -205,6 +209,16 @@ class GNNTorchTrainer(_BaseTorchTrainer):
             print("EPOCH: {}/{}".format(epoch + 1, self.epochs))
             print("\t Train loss: {}, Val loss:{}".format(avg_train_loss,avg_val_loss))
 
+            print("\t Train loss: {}, Val loss:{}".format(avg_train_loss,avg_val_loss))
+
+            # Log to WandB if active
+            if wandb is not None and wandb.run is not None:
+                wandb.log({
+                    "train_loss": avg_train_loss, 
+                    "val_loss": avg_val_loss, 
+                    "epoch": epoch
+                })
+            
             # Optuna integration: Report and Prune
             if trial:
                 trial.report(avg_val_loss, epoch)

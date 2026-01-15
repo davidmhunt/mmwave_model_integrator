@@ -4,6 +4,10 @@ import os
 import sys
 import torch
 from optuna.visualization import plot_optimization_history, plot_param_importances, plot_parallel_coordinate
+try:
+    import wandb
+except ImportError:
+    wandb = None
 from mmwave_model_integrator.config import Config
 import mmwave_model_integrator.torch_training.trainers as trainers
 
@@ -18,7 +22,7 @@ def objective(trial):
     config = Config(config_path)
 
     # Suggest hyperparameters
-    k_val = trial.suggest_int("k", 10, 40, step=5)
+    k_val = trial.suggest_int("k", 10, 30, step=5)
     hidden_channels = trial.suggest_int("hidden_channels",16,32,step=4)
     # hidden_channels = trial.suggest_categorical("hidden_channels", [16, 24, 32])
     lr = trial.suggest_float("lr", 1e-4, 1e-2, log=True)
@@ -44,6 +48,17 @@ def objective(trial):
     config.trainer['working_dir'] = trial_dir
     config.trainer['save_name'] = f"model_trial_{trial.number}"
 
+    # Initialize WandB run for this trial
+    run = None
+    if wandb is not None:
+        run = wandb.init(
+            project="IcaRAus_gnn_optimization", 
+            group="optuna_search", 
+            name=f"trial_{trial.number}",
+            config=trial.params,
+            reinit=True
+        )
+
     try:
         # Initialize Trainer
         trainer_config = config.trainer
@@ -58,6 +73,10 @@ def objective(trial):
         print(f"Trial failed with error: {e}")
         raise e
     finally:
+        # Finish WandB run
+        if run is not None:
+            run.finish()
+
         # cleanup to prevent OOM
         if 'trainer' in locals():
             del trainer

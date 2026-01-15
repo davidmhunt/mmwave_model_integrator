@@ -22,7 +22,9 @@ pandas = "^2.1.4"
 opencv-python = ">4.7, <4.9.0.80"
 poetry-dotenv-plugin = "^0.2.0"
 onnx = "^1.17.0"
-
+optuna = {extras = ["visualization"], version = "^4.6.0"}
+optuna-dashboard = "^0.20.0"
+wandb = "^0.24.0"
 
 # Optional dependencies
 cpsl_datasets = {path="./submodules/cpsl_datasets/", develop = true, optional = true}
@@ -30,8 +32,7 @@ mmwave_radar_processing = {path="./submodules/mmwave_radar_processing/", develop
 radcloud = {path="./submodules/radcloud/", develop = true, optional = true}
 radarhd = {path="./submodules/radarhd/", develop=true, optional = true}
 geometries = {path="./submodules/geometries/",develop=true, optional = true}
-optuna = {extras = ["visualization"], version = "^4.6.0"}
-optuna-dashboard = "^0.20.0"
+
 
 [tool.poetry.group.torch.dependencies]
 torch = "^2.4.0"

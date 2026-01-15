@@ -176,3 +176,19 @@ To visualize the optimization progress in real-time with `optuna-dashboard`:
     ssh -L 8080:127.0.0.1:8080 <your_username>@<remote_host_ip>
     ```
     Then, open your web browser and navigate to `http://127.0.0.1:8080`.
+
+### Visualizing Results (Weights & Biases)
+
+The optimization script also integrates with [Weights & Biases (WandB)](https://wandb.ai/) for cloud-based visualization.
+
+1.  **Setup**:
+    Ensure you have a WandB account. The first time you run the script, `wandb` will prompt you to login. You can also login beforehand:
+    ```bash
+    wandb login
+    ```
+
+2.  **Viewing Results**:
+    Once the script runs, it will print a direct URL to the run page on the WandB dashboard. You can view:
+    *   **Parallel Coordinates Plot**: Visualize high-dimensional hyperparameter relationships.
+    *   **Parameter Importance**: See which parameters affect the loss the most.
+    *   **Optimization History**: Track the improvement of the objective value over trials.
