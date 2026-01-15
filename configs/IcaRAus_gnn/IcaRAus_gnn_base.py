@@ -13,7 +13,7 @@ dataset_label = "IcaRAus_gnn_100fh"
 generated_dataset = dict(
     input_encoding_folder="nodes",
     ground_truth_encoding_folder="labels",
-    generated_dataset_path="/data/radnav/radnav_model_datasets/{}_train".format(dataset_label)
+    generated_dataset_path="/home/david/Downloads/{}_train".format(dataset_label)
 )
 
 trainer = dict(
@@ -21,12 +21,13 @@ trainer = dict(
     model = model,
     optimizer = dict(
         type='Adam',
-        lr=0.001
+        lr=0.007, #originally 0.001
+        weight_decay=1.04e-6
     ),
 
     loss_fn = dict(
         type='BCEWithLogitsLoss',
-        # pos_weight=torch.tensor([20.0])
+        pos_weight=torch.tensor([0.20])
     ),
     dataset = dict(
         type='_GnnNodeDataset',
@@ -46,7 +47,7 @@ trainer = dict(
     ),
     data_loader = dict(
         type='TGDataLoader',
-        batch_size=50,
+        batch_size=40,
         shuffle=True,
         num_workers=18
     ),
@@ -54,6 +55,7 @@ trainer = dict(
     node_directory=generated_dataset["input_encoding_folder"],
     label_directory=generated_dataset["ground_truth_encoding_folder"],
     val_split = 0.25,
+    target_metric = "val_f1",
     working_dir = "working_dir/IcaRAus_gnn",
     save_name = "{}".format(config_label),
     epochs = 20,

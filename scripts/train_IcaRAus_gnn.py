@@ -23,7 +23,7 @@ from mmwave_model_integrator.plotting.plotter_gnn_pc_processing import PlotterGn
 
 #initialize the dataset
 # config_label = "IcaRAus_gnn_base"
-config_label = "IcaRAus_gnn_two_stream"
+config_label = "IcaRAus_gnn_two_stream_200fh"
 
 #initialize the encoder and decoder
 input_encoder = _NodeEncoder()

@@ -4,6 +4,7 @@ import inspect
 from tqdm import tqdm
 import torch
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import f1_score
 from torch_geometric.loader import DataLoader
 from torch_geometric.data import Data
 from torch_geometric.nn import DataParallel as PyG_DataParallel
@@ -43,7 +44,8 @@ class GNNTorchTrainer(_BaseTorchTrainer):
                  epochs: int = 40,
                  pretrained_state_dict_path: str = None,
                  cuda_device: str = "cuda:0",
-                 multiple_GPUs: bool = False) -> None:
+                 multiple_GPUs: bool = False,
+                 target_metric: str = "val_loss") -> None:
         """Initializes the GNNTorchTrainer.
 
         Args:
@@ -62,6 +64,7 @@ class GNNTorchTrainer(_BaseTorchTrainer):
             pretrained_state_dict_path (str, optional): Path to pretrained model weights. Defaults to None.
             cuda_device (str, optional): CUDA device to use. Defaults to "cuda:0".
             multiple_GPUs (bool, optional): Whether to use multiple GPUs if available. Defaults to False.
+            target_metric (str, optional): Metric to optimize. Defaults to "val_loss" or "val_f1".
         """
         
         super().__init__(
@@ -81,6 +84,8 @@ class GNNTorchTrainer(_BaseTorchTrainer):
             cuda_device=cuda_device,
             multiple_GPUs=multiple_GPUs
         )
+        
+        self.target_metric = target_metric
         
         #inspect the model to determine the input arguments
         if isinstance(self.model, PyG_DataParallel):
@@ -152,7 +157,12 @@ class GNNTorchTrainer(_BaseTorchTrainer):
             #initialize total training and validation loss
             total_train_loss = 0
             total_val_loss = 0
-            best_val_loss = float('inf')
+            if self.target_metric == "val_loss":
+                best_metric_value = float('inf')
+            elif self.target_metric == "val_f1":
+                best_metric_value = -float('inf')
+            else:
+                raise NotImplementedError("target_metric must be either val_loss or val_f1")
             batch_num = 0
 
             #loss accumulation steps
@@ -189,13 +199,44 @@ class GNNTorchTrainer(_BaseTorchTrainer):
                     #add the loss to the total loss
                     total_val_loss += loss
 
+            # Calculate F1-Score (Robust to Imbalance)
+            # We need to collect all predictions and labels for F1 score calculation
+            # To avoid OOM on GPU, we can collect them on CPU
+            all_preds = []
+            all_labels = []
+            
+            with torch.no_grad():
+                for data in self.val_data_loader:
+                     pred, y = self.make_prediction(data)
+                     # Apply sigmoid to convert logits to probabilities, then threshold at 0.5
+                     # Assuming binary classification as per user request
+                     preds_binary = (torch.sigmoid(pred) > 0.5).float()
+                     all_preds.append(preds_binary.cpu())
+                     all_labels.append(y.cpu())
+            
+            all_preds = torch.cat(all_preds).numpy()
+            all_labels = torch.cat(all_labels).numpy()
+            val_f1 = f1_score(all_labels, all_preds, average='binary')
+
             
             avg_train_loss = total_train_loss / self.train_steps
             avg_val_loss = total_val_loss / self.test_steps
             
-            # Update best validation loss
-            if avg_val_loss < best_val_loss:
-                best_val_loss = avg_val_loss
+            print("\t Train loss: {}, Val loss: {}, Val F1: {}".format(avg_train_loss, avg_val_loss, val_f1))
+
+            # Determine appropriate metric to track
+            if self.target_metric == "val_f1":
+                current_metric_value = val_f1
+            else:
+                current_metric_value = avg_val_loss
+
+            # Update best metric
+            if self.target_metric == "val_loss":
+                if current_metric_value < best_metric_value:
+                    best_metric_value = current_metric_value
+            else: # maximize F1
+                if current_metric_value > best_metric_value:
+                    best_metric_value = current_metric_value
 
             #update training history
             if isinstance(avg_train_loss, torch.Tensor):
@@ -208,22 +249,23 @@ class GNNTorchTrainer(_BaseTorchTrainer):
             else:
                  self.history["val_loss"].append(avg_val_loss)
 
-            print("EPOCH: {}/{}".format(epoch + 1, self.epochs))
-            print("\t Train loss: {}, Val loss:{}".format(avg_train_loss,avg_val_loss))
+            self.history.setdefault("val_f1", []).append(val_f1)
 
-            print("\t Train loss: {}, Val loss:{}".format(avg_train_loss,avg_val_loss))
+            print("EPOCH: {}/{}".format(epoch + 1, self.epochs))
+            print("\t Train loss: {}, Val loss: {}, Val F1: {}".format(avg_train_loss, avg_val_loss, val_f1))
 
             # Log to WandB if active
             if wandb is not None and wandb.run is not None:
                 wandb.log({
                     "train_loss": avg_train_loss, 
                     "val_loss": avg_val_loss, 
+                    "val_f1": val_f1,
                     "epoch": epoch
                 })
             
             # Optuna integration: Report and Prune
             if trial:
-                trial.report(avg_val_loss, epoch)
+                trial.report(current_metric_value, epoch)
                 if trial.should_prune():
                     raise optuna.exceptions.TrialPruned()
 
@@ -244,7 +286,7 @@ class GNNTorchTrainer(_BaseTorchTrainer):
         if trial is None:
             self.save_result_fig()
         
-        return best_val_loss
+        return best_metric_value
 
     def _init_model(self,model_config:dict,optimizer_config:dict):
         """Initialize the model, pretrained weights, optimizer, and send it

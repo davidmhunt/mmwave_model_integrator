@@ -15,6 +15,7 @@ import mmwave_model_integrator.torch_training.trainers as trainers
 sys.path.append("../")
 
 config_name = "IcaRAus_gnn_two_stream"
+OPTIMIZATION_TARGET = "val_f1" # or "val_loss"
 
 def objective(trial):
     # Load base config
@@ -22,8 +23,10 @@ def objective(trial):
     config = Config(config_path)
 
     # Suggest hyperparameters
-    k_val = trial.suggest_int("k", 10, 30, step=5)
-    hidden_channels = trial.suggest_int("hidden_channels",16,32,step=4)
+    k_val = trial.suggest_int("k", 10, 40, step=5)
+    hidden_channels = trial.suggest_int("hidden_channels",16,40,step=4)
+    downsample_keep_ratio = trial.suggest_float("downsample_keep_ratio",0.1,0.4)
+    pos_weight = trial.suggest_float("pos_weight",0.10,0.40)
     # hidden_channels = trial.suggest_categorical("hidden_channels", [16, 24, 32])
     lr = trial.suggest_float("lr", 1e-4, 1e-2, log=True)
     weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
@@ -35,14 +38,17 @@ def objective(trial):
     config.model['dropout'] = dropout
     config.trainer['optimizer']['lr'] = lr
     config.trainer['optimizer']['weight_decay'] = weight_decay
+    config.trainer['loss_fn']['pos_weight'] = torch.tensor([pos_weight])
     
     # Also update model params inside the trainer config if it's passed separately or used there
     config.trainer['model']['k'] = k_val
     config.trainer['model']['hidden_channels'] = hidden_channels
     config.trainer['model']['dropout'] = dropout
+    config.trainer['dataset']['downsample_keep_ratio'] = downsample_keep_ratio
+    config.trainer['target_metric'] = OPTIMIZATION_TARGET
 
     # Unique working directory for this trial
-    trial_dir = os.path.join("tuning_logs", f"trial_{trial.number}")
+    trial_dir = os.path.join("tuning_logs", f"trial_{config_name}_{trial.number}")
     if not os.path.exists(trial_dir):
         os.makedirs(trial_dir)
     config.trainer['working_dir'] = trial_dir
@@ -52,7 +58,7 @@ def objective(trial):
     run = None
     if wandb is not None:
         run = wandb.init(
-            project="IcaRAus_gnn_optimization", 
+            project="{}_optimization".format(config_name), 
             group="optuna_search", 
             name=f"trial_{trial.number}",
             config=trial.params,
@@ -94,12 +100,20 @@ if __name__ == "__main__":
         os.makedirs(log_dir)
 
     # Database URL for optuna-dashboard support
-    db_url = f"sqlite:///{log_dir}/optuna.db"
+    db_url = f"sqlite:///{log_dir}/optuna_{config_name}.db"
     
     # Create study
+    if OPTIMIZATION_TARGET == "val_loss":
+        optimization_direction = "minimize",
+    elif OPTIMIZATION_TARGET == "val_f1":
+        optimization_direction = "maximize"
+    else:
+        raise NotImplementedError("target_metric must be either val_loss or val_f1")
+    optimization_direction 
+
     pruner = optuna.pruners.MedianPruner()
     study = optuna.create_study(
-        direction="minimize", 
+        direction=optimization_direction, 
         pruner=pruner,
         storage=db_url,
         study_name="{}_optimization".format(config_name),

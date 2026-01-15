@@ -145,6 +145,13 @@ class _BaseTorchTrainer:
 
         loss_fn_class = getattr(loss_fns,loss_fn_config['type'])
         loss_fn_config.pop('type')
+
+        #special exception for handling the pos_weight argument
+        if "pos_weight" in loss_fn_config:
+            if not isinstance(loss_fn_config["pos_weight"], torch.Tensor):
+                loss_fn_config["pos_weight"] = torch.tensor(loss_fn_config["pos_weight"])
+            loss_fn_config["pos_weight"] = loss_fn_config["pos_weight"].to(self.cuda_device)
+
         self.loss_fn = loss_fn_class(**loss_fn_config)
 
     def _init_datasets(self,dataset:dict):
