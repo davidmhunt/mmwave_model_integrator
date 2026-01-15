@@ -155,6 +155,8 @@ class GNNTorchTrainer(_BaseTorchTrainer):
             best_val_loss = float('inf')
             batch_num = 0
 
+            #loss accumulation steps
+
             for data in tqdm(self.train_data_loader, desc="Training", leave=False):
                 
                 # make the prediction using the helper function

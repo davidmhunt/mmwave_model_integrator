@@ -3,7 +3,7 @@ import torch
 _base_ = ["IcaRAus_gnn_base.py"]
 model = dict(
     type='TwoStreamSpatioTemporalGnn',
-    hidden_channels=32,
+    hidden_channels=20,
     out_channels=1,
     k=30,
     dropout=0.1,
