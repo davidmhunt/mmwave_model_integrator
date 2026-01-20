@@ -3,12 +3,12 @@ import torch
 _base_ = ["IcaRAus_gnn_two_stream.py"]
 
 model = dict(
-    type='SequentialDynamicEdgeConv',
-    in_channels = 4,
-    hidden_channels=32,
+    type='TwoStreamSpatioTemporalGnn',
+    hidden_channels=28,
     out_channels=1,
-    dropout=0.5,
-    k=35
+    k=35,
+    dropout=0.1,
+    in_channels=None
 )
 
 config_label = "IcaRAus_TwoStreamSpatioTemporalGnn_200fh"

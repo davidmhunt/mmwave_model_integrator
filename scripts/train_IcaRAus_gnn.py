@@ -6,12 +6,12 @@ import numpy as np
 from mmwave_model_integrator.config import Config
 import mmwave_model_integrator.torch_training.trainers as trainers
 
-from dotenv import load_dotenv
-load_dotenv("../.env")
-DATASET_PATH=os.getenv("DATASET_DIRECTORY")
-DATASET_PATH=os.path.join("/data/radnav/radnav_model_datasets")
-MODEL_TRAINING_DATASET_PATH=os.getenv("MODEL_TRAINING_DATASET_PATH")
-GENERATED_DATASETS_PATH=os.getenv("GENERATED_DATASETS_PATH")
+# from dotenv import load_dotenv
+# load_dotenv("../.env")
+# DATASET_PATH=os.getenv("DATASET_DIRECTORY")
+# DATASET_PATH=os.path.join("/data/radnav/radnav_model_datasets")
+# MODEL_TRAINING_DATASET_PATH=os.getenv("MODEL_TRAINING_DATASET_PATH")
+# GENERATED_DATASETS_PATH=os.getenv("GENERATED_DATASETS_PATH")
 
 
 sys.path.append("../")
@@ -23,7 +23,7 @@ from mmwave_model_integrator.plotting.plotter_gnn_pc_processing import PlotterGn
 
 #initialize the dataset
 # config_label = "IcaRAus_gnn_base"
-config_label = "IcaRAus_gnn_two_stream_200fh"
+config_label = "IcaRAus_gnn_hierarchical_anchor_net_IcaRAus_ds.py"
 
 #initialize the encoder and decoder
 input_encoder = _NodeEncoder()

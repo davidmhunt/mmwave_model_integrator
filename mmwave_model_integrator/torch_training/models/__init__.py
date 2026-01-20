@@ -4,6 +4,7 @@ from mmwave_model_integrator.torch_training.models.GCNGnn import GCNGNNClassifie
 from mmwave_model_integrator.torch_training.models.SAGEGnn import SageGNNClassifier
 from mmwave_model_integrator.torch_training.models.SequentialDynamicEdgeConvGnn import SequentialDynamicEdgeConv
 from mmwave_model_integrator.torch_training.models.TwoStreamSpatioTemporalGnn import TwoStreamSpatioTemporalGnn
+from mmwave_model_integrator.torch_training.models.HierarchicalAnchorNet import HierarchicalAnchorNet
 from mmwave_model_integrator.torch_training.models.Radarize_models import ResNet18,ResNet18Micro,ResNet18Nano,ResNet50
 
 __all__ = [
@@ -12,7 +13,8 @@ __all__ = [
     'GCNGNNClassifier',
     'SageGNNClassifier',
     'SequentialDynamicEdgeConv',
-    'TwoStreamSpatioTemporalGnn'
+    'TwoStreamSpatioTemporalGnn',
+    'HierarchicalAnchorNet',
     'ResNet18',
     'ResNet18Micro',
     'ResNet18Nano',

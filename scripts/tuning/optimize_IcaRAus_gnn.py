@@ -14,7 +14,7 @@ import mmwave_model_integrator.torch_training.trainers as trainers
 # Set up paths
 sys.path.append("../")
 
-config_name = "IcaRAus_gnn_two_stream"
+config_name = "IcaRAus_gnn_two_stream_IcaRAus_ds"
 OPTIMIZATION_TARGET = "val_f1" # or "val_loss"
 
 def objective(trial):
@@ -23,10 +23,10 @@ def objective(trial):
     config = Config(config_path)
 
     # Suggest hyperparameters
-    k_val = trial.suggest_int("k", 10, 40, step=5)
+    k_val = trial.suggest_int("k", 10, 30, step=5)
     hidden_channels = trial.suggest_int("hidden_channels",16,40,step=4)
-    downsample_keep_ratio = trial.suggest_float("downsample_keep_ratio",0.1,0.4)
-    pos_weight = trial.suggest_float("pos_weight",0.10,0.40)
+    downsample_keep_ratio = trial.suggest_float("downsample_keep_ratio",0.05,0.3)
+    pos_weight = trial.suggest_float("pos_weight",0.20,0.50)
     # hidden_channels = trial.suggest_categorical("hidden_channels", [16, 24, 32])
     lr = trial.suggest_float("lr", 1e-4, 1e-2, log=True)
     weight_decay = trial.suggest_float("weight_decay", 1e-6, 1e-3, log=True)
