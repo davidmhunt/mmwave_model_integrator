@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch_geometric.nn import fps, radius, knn_interpolate
 from torch_geometric.utils import scatter
+from typing import Union, Tuple, Optional
 
 class HybridLocalAggregator(nn.Module):
     """Aggregates local graph features using a dual-path strategy.
@@ -32,10 +33,7 @@ class HybridLocalAggregator(nn.Module):
         """
         super().__init__()
         self.use_attention = use_attention
-        
-        # 1. Input Normalization
-        self.input_norm = nn.BatchNorm1d(in_channels)
-        
+                
         # 2. Shared Feature Encoder
         # Input dimension is in_channels * 2 because we concatenate:
         # [Source_Features (N) || (Source - Target) Difference (N)]
@@ -62,11 +60,11 @@ class HybridLocalAggregator(nn.Module):
 
         self.output_norm = nn.BatchNorm1d(hidden_channels)
 
-    def forward(self, x: torch.Tensor, edge_index: torch.Tensor, dim_size: int = None) -> torch.Tensor:
+    def forward(self, x: Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]], edge_index: torch.Tensor, dim_size: int = None) -> torch.Tensor:
         """Performs the aggregation pass.
 
         Args:
-            x (torch.Tensor): Dense node features of shape [N, in_channels].
+            x (torch.Tensor): Dense node features of shape [N, in_channels]. (assumes batch normalization already applied)
             edge_index (torch.Tensor): Graph connectivity of shape [2, E], 
                 where row=Source indices and col=Target indices.
             dim_size (int, optional): The number of target nodes (anchors). 
@@ -76,22 +74,25 @@ class HybridLocalAggregator(nn.Module):
             torch.Tensor: Aggregated node features of shape [dim_size, hidden_channels].
         """
         # Normalize inputs immediately
-        x = self.input_norm(x)
+        if isinstance(x, tuple):
+            x_src, x_dst = x
+        else:
+            x_src = x_dst = x
 
         # Unpack graph connectivity
         row, col = edge_index
         
         # Determine output dimension size (number of anchors)
         if dim_size is None:
-            dim_size = x.size(0) if x is not None else col.max().item() + 1
+            dim_size = x_dst.size(0)
 
         # --- A. Shared Edge Feature Computation ---
         # Calculate relative features: (Source - Target)
         # This genericizes "Relative Position" to any feature space provided in x
-        edge_relative_features = x[row] - x[col]
+        edge_relative_features = x_src[row] - x_dst[col]
         
         # Concatenate: [Neighbor Features] + [Relative Difference]
-        edge_input = torch.cat([x[row], edge_relative_features], dim=1)
+        edge_input = torch.cat([x_src[row], edge_relative_features], dim=1)
         
         # Compute Edge Embeddings (Messages) -> [Num_Edges, Hidden]
         edge_embeddings = self.mlp(edge_input)
@@ -192,10 +193,15 @@ class HierarchicalAnchorNet(torch.nn.Module):
         self.stream_fusion = nn.Linear(stream_hidden * 2, hidden_channels)
         self.bn_fusion = nn.BatchNorm1d(hidden_channels)
 
+        # Transformers require d_model to be divisible by nhead. 
+        # hidden_channels (64) is divisible by 4, but hidden_channels + 3 (67) is not.
+        # Solution: Project the features from (hidden_channels + 3) -> hidden_channels
+        self.pre_transformer_projection = nn.Linear(hidden_channels + 3, hidden_channels)
+
         # --- Stage 2: Global Context (Sparse -> Sparse) ---
-        # Transformer input = Fused Features + Normalized XYZ (3)
+        # Transformer input = Projected Features (hidden_channels)
         self.global_transformer = nn.TransformerEncoderLayer(
-            d_model=hidden_channels + 3, 
+            d_model=hidden_channels, 
             nhead=4, 
             dim_feedforward=hidden_channels * 2,
             batch_first=True,
@@ -204,8 +210,10 @@ class HierarchicalAnchorNet(torch.nn.Module):
 
         # --- Stage 3: Final Point Classification (Dense) ---
         # Combines Raw Features + Interpolated Anchor Context
+        # Note: Since the transformer now outputs hidden_channels, the input to this
+        # layer changes from (hidden_channels + 3) + in_channels -> hidden_channels + in_channels
         self.final_classifier = nn.Sequential(
-            nn.Linear((hidden_channels + 3) + in_channels, 64),
+            nn.Linear(hidden_channels + in_channels, 64),
             nn.ReLU(),
             nn.BatchNorm1d(64),
             nn.Dropout(0.5),
@@ -303,13 +311,27 @@ class HierarchicalAnchorNet(torch.nn.Module):
         anchor_batch = batch[anchor_idx]
         
         # --- Step 2: Parallel Local Aggregation ---
-        row, col = radius(raw_pos, anchor_pos, r=1.0, batch_x=batch, batch_y=anchor_batch, max_num_neighbors=self.k_local)
+        # radius(x, y) returns (y_index, x_index). 
+        # Here y=anchor_pos, x=raw_pos.
+        # So row=anchor_index, col=raw_index.
+        # We want flow: Raw -> Anchor. (Source -> Target).
+        # So edge_index for aggregator should be (Source, Target) = (col, row).
         
+        target_edge_idx, source_edge_idx = radius(raw_pos, anchor_pos, r=1.0, batch_x=batch, batch_y=anchor_batch, max_num_neighbors=self.k_local)
+        
+        # Prepare targets for bipartite aggregation
+        norm_x_spatial_target = norm_x_spatial[anchor_idx]
+        norm_x_temporal_target = norm_x_temporal[anchor_idx]
+
         spatial_features = self.spatial_aggregator(
-            x=norm_x_spatial, edge_index=(row, col), dim_size=anchor_pos.size(0)
+            x=(norm_x_spatial, norm_x_spatial_target), 
+            edge_index=(source_edge_idx, target_edge_idx), 
+            dim_size=anchor_pos.size(0)
         )
         temporal_features = self.temporal_aggregator(
-            x=norm_x_temporal, edge_index=(row, col), dim_size=anchor_pos.size(0)
+            x=(norm_x_temporal, norm_x_temporal_target), 
+            edge_index=(source_edge_idx, target_edge_idx), 
+            dim_size=anchor_pos.size(0)
         )
         
         combined_streams = torch.cat([spatial_features, temporal_features], dim=1)
@@ -319,9 +341,12 @@ class HierarchicalAnchorNet(torch.nn.Module):
         norm_anchor_pos = self.pos_norm(anchor_pos)
         global_input = torch.cat([anchor_features, norm_anchor_pos], dim=1)
         
+        # Project to match transformer d_model requirements
+        global_input_projected = self.pre_transformer_projection(global_input)
+        
         # Safe reshape because we guaranteed exactly num_anchors per batch item
         batch_size = batch.max().item() + 1
-        dense_input = global_input.view(batch_size, self.num_anchors, -1)
+        dense_input = global_input_projected.view(batch_size, self.num_anchors, -1)
         
         # Transformer
         anchor_global_dense = self.global_transformer(dense_input)

@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torch_geometric.nn import DynamicEdgeConv
 
-class TwoStreamSpatioTemporalGnn(torch.nn.Module):
+class RuiyangTestModel(torch.nn.Module):
     """
     A Two-Stream Spatio-Temporal Graph Neural Network for radar point cloud processing.
 
@@ -30,6 +30,7 @@ class TwoStreamSpatioTemporalGnn(torch.nn.Module):
         """
         super().__init__()
         self.k = k
+        encoder_channels = 8
 
         # --- 1. Robust Input Normalization ---
         # We split normalization because Space and Time have different physics.
@@ -38,12 +39,26 @@ class TwoStreamSpatioTemporalGnn(torch.nn.Module):
         self.spatial_norm = nn.BatchNorm1d(3) # Normalizes x,y,z
         self.time_norm = nn.BatchNorm1d(1)    # Normalizes time
 
+        # --- 1a. Input Encoding (MLP Layers) ---
+        # Before GNNs, we encode the raw inputs into a higher-dimensional feature space.
+        self.spatial_encoder = nn.Sequential(
+            nn.Linear(3, encoder_channels),
+            nn.BatchNorm1d(encoder_channels),
+            nn.ReLU()
+        )
+
+        self.persistence_encoder = nn.Sequential(
+            nn.Linear(4, encoder_channels),  # 3 spatial + 1 time
+            nn.BatchNorm1d(encoder_channels),
+            nn.ReLU()
+        )
+
         # --- 2. Spatial Stream (Geometry) ---
-        # Input: 3 spatial coords * 2 (EdgeConv) = 6
-        # Task: Detect "Wall-like" or "Corner-like" shapes
+        # Input: Encoded features (hidden_channels)
+        # EdgeConv constructs features [x_i, x_j - x_i] -> Dim: 2 * hidden_channels
         self.conv_spatial = DynamicEdgeConv(
             nn=nn.Sequential(
-                nn.Linear(6, hidden_channels),
+                nn.Linear(2 * encoder_channels, hidden_channels),
                 nn.BatchNorm1d(hidden_channels),
                 nn.ReLU(),
                 nn.Linear(hidden_channels, hidden_channels),
@@ -52,11 +67,11 @@ class TwoStreamSpatioTemporalGnn(torch.nn.Module):
             ), k=k, aggr='max')
 
         # --- 3. Persistence Stream (Stability) ---
-        # Input: 4 coords (x,y,z,t) * 2 = 8
-        # Task: Detect points that stay in the same place over time.
+        # Input: Encoded features (hidden_channels)
+        # EdgeConv constructs features [x_i, x_j - x_i] -> Dim: 2 * hidden_channels
         self.conv_persistence = DynamicEdgeConv(
             nn=nn.Sequential(
-                nn.Linear(8, hidden_channels),
+                nn.Linear(2 * encoder_channels, hidden_channels),
                 nn.BatchNorm1d(hidden_channels),
                 nn.ReLU(),
                 nn.Linear(hidden_channels, hidden_channels),
@@ -66,16 +81,16 @@ class TwoStreamSpatioTemporalGnn(torch.nn.Module):
 
         # --- 4. Fusion Layer ---
         # Combines Geometry (Is it a wall?) + Persistence (Has it been here a while?)
-        fusion_dim = hidden_channels * 2
-        self.conv_fusion = DynamicEdgeConv(
-            nn=nn.Sequential(
-                nn.Linear(fusion_dim * 2, fusion_dim),
-                nn.BatchNorm1d(fusion_dim),
-                nn.ReLU(),
-                nn.Linear(fusion_dim, fusion_dim),
-                nn.BatchNorm1d(fusion_dim),
-                nn.ReLU()
-            ), k=k, aggr='max')
+        # fusion_dim = hidden_channels * 2
+        # self.conv_fusion = DynamicEdgeConv(
+        #     nn=nn.Sequential(
+        #         nn.Linear(fusion_dim * 2, fusion_dim),
+        #         nn.BatchNorm1d(fusion_dim),
+        #         nn.ReLU(),
+        #         nn.Linear(fusion_dim, fusion_dim),
+        #         nn.BatchNorm1d(fusion_dim),
+        #         nn.ReLU()
+        #     ), k=k, aggr='max')
 
         # --- 5. Classifier ---
         # Concatenate all features: Spatial + Persistence + Fused
@@ -116,14 +131,18 @@ class TwoStreamSpatioTemporalGnn(torch.nn.Module):
         x_persistence_input = torch.cat([x_spatial_norm, x_time_norm], dim=1)
 
         # --- B. Stream Processing ---
+        # Encode inputs
+        x_spatial_encoded = self.spatial_encoder(x_spatial_norm)
+        x_persistence_encoded = self.persistence_encoder(x_persistence_input)
+
         # Stream 1: Finds geometric shapes (walls, desks)
         # It ignores time, so it effectively "collapses" the video into a single 3D scan.
-        out_spatial = self.conv_spatial(x_spatial_norm, batch)
+        out_spatial = self.conv_spatial(x_spatial_encoded, batch)
 
         # Stream 2: Finds stable clusters
         # By using x,y,z,t, it will only connect points that are close in space AND time.
         # Transient noise (random blips) will likely lack neighbors in this 4D space.
-        out_persistence = self.conv_persistence(x_persistence_input, batch)
+        out_persistence = self.conv_persistence(x_persistence_encoded, batch)
 
         # --- C. Fusion & Output ---
         combined = torch.cat([out_spatial, out_persistence], dim=1)
