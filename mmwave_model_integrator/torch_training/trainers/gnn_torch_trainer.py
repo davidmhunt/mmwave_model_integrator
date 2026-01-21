@@ -269,7 +269,7 @@ class GNNTorchTrainer(_BaseTorchTrainer):
                 if trial.should_prune():
                     raise optuna.exceptions.TrialPruned()
 
-            if trial is None:
+            if trial is None and current_metric_value == best_metric_value:
                 #save the model
                 file_name = "{}.pth".format(self.save_name)
 

@@ -39,17 +39,34 @@ class LinearAttentionLayer(nn.Module):
         
         return self.out_proj(attn_out.transpose(1, 2).reshape(B, N, C))
 
+class FourierPositionEncoder(nn.Module):
+    def __init__(self, in_channels, out_channels, scale=1.0):
+        super().__init__()
+        self.scale = scale
+        # We need to project 'in_channels' to 'out_channels'. 
+        # Since we use sin & cos, we need out_channels / 2 frequencies.
+        self.B = nn.Linear(in_channels, out_channels // 2, bias=False)
+        # Initialize B with Gaussian to simulate random Fourier features
+        nn.init.normal_(self.B.weight, std=1.0)
+
+    def forward(self, x):
+        x_proj = 2 * torch.pi * self.B(x) * self.scale
+        return torch.cat([torch.sin(x_proj), torch.cos(x_proj)], dim=-1)
+
 class GlobalContextStem(nn.Module):
     """
     Runs a lightweight Linear Transformer on the full point cloud
     to generate a 'Global Context' vector for every point.
     """
-    def __init__(self, in_channels, global_dim=32, layers=2):
+    def __init__(self, in_channels, global_dim=32, layers=2, use_fourier_features=False):
         super().__init__()
         self.input_emb = nn.Linear(in_channels, global_dim)
         
         # Positional Encoding (Crucial for Transformers)
-        self.pos_emb = nn.Linear(3, global_dim) 
+        if use_fourier_features:
+             self.pos_emb = FourierPositionEncoder(3, global_dim, scale=10.0)
+        else:
+             self.pos_emb = nn.Linear(3, global_dim) 
         
         self.layers = nn.ModuleList([
             nn.ModuleList([
@@ -87,8 +104,9 @@ class RuiyangTestModel(nn.Module):
         k=20,
         dropout=0.5,
         use_gnn=True,
+        global_dim = 32,
         use_global_context=True,
-        encoded_global_dim=4,
+        use_fourier_features=False,
         **kwargs):
         super().__init__()
         self.k = k
@@ -101,32 +119,18 @@ class RuiyangTestModel(nn.Module):
 
         # --- 2. Global Context Stem ---
         # Adds 'global_dim' features to every point
-        global_dim = 32
         if self.use_global_context:
-            self.global_stem = GlobalContextStem(in_channels=4, global_dim=global_dim, layers=2)
+            self.global_stem = GlobalContextStem(in_channels=4, global_dim=global_dim, layers=2, use_fourier_features=use_fourier_features)
         else:
             global_dim = 0 # No global context features
 
-        # --- 2a. Global Context Compression ---
-        # Compress global features before feeding to GNN to save compute
-        gnn_global_dim = global_dim
-        if self.use_gnn and self.use_global_context and encoded_global_dim < global_dim:
-            self.global_context_encoder = nn.Sequential(
-                nn.Linear(global_dim, encoded_global_dim),
-                nn.BatchNorm1d(encoded_global_dim),
-                nn.ReLU()
-            )
-            gnn_global_dim = encoded_global_dim
-        else:
-            self.global_context_encoder = None
-
         # --- 3. Spatial Stream (Geometry) ---
-        # Input: 3 (Coords) + gnn_global_dim
-        # The EdgeConv dimension increases because we append the context
+        # Input: 3 (Coords)
+        # Processed independently from global context
         if self.use_gnn:
             self.conv_spatial = DynamicEdgeConv(
                 nn=nn.Sequential(
-                    nn.Linear((3 + gnn_global_dim) * 2, hidden_channels), # *2 because EdgeConv concats (x_i, x_j - x_i)
+                    nn.Linear(3 * 2, hidden_channels), # *2 because EdgeConv concats (x_i, x_j - x_i)
                     nn.BatchNorm1d(hidden_channels),
                     nn.ReLU(),
                     nn.Linear(hidden_channels, hidden_channels),
@@ -135,10 +139,10 @@ class RuiyangTestModel(nn.Module):
                 ), k=k, aggr='max')
 
             # --- 4. Persistence Stream (Stability) ---
-            # Input: 4 (Coords+Time) + gnn_global_dim
+            # Input: 4 (Coords+Time)
             self.conv_persistence = DynamicEdgeConv(
                 nn=nn.Sequential(
-                    nn.Linear((4 + gnn_global_dim) * 2, hidden_channels),
+                    nn.Linear(4 * 2, hidden_channels),
                     nn.BatchNorm1d(hidden_channels),
                     nn.ReLU(),
                     nn.Linear(hidden_channels, hidden_channels),
@@ -195,25 +199,14 @@ class RuiyangTestModel(nn.Module):
         
         if self.use_gnn:
             # Prepare Stream Inputs
-            # Validation: if use_global_context is False, global_ctx is None.
-            # We need to handle concatenation.
+            # Independent of Global Context now
             
-            gnn_ctx = global_ctx
-            if self.use_global_context:
-                if self.global_context_encoder is not None:
-                    gnn_ctx = self.global_context_encoder(global_ctx)
-                
-                # Spatial Input: [Norm_XYZ, Encoded_Global_Ctx]
-                x_spatial_in = torch.cat([x_spatial_norm, gnn_ctx], dim=1)
-                # Persistence Input: [Norm_XYZ, Norm_Time, Encoded_Global_Ctx]
-                x_persistence_in = torch.cat([x_spatial_norm, x_time_norm, gnn_ctx], dim=1)
-            else:
-                # Spatial Input: [Norm_XYZ]
-                x_spatial_in = x_spatial_norm
-                # Persistence Input: [Norm_XYZ, Norm_Time]
-                x_persistence_in = torch.cat([x_spatial_norm, x_time_norm], dim=1)
+            # Spatial Input: [Norm_XYZ]
+            x_spatial_in = x_spatial_norm
+            # Persistence Input: [Norm_XYZ, Norm_Time]
+            x_persistence_in = torch.cat([x_spatial_norm, x_time_norm], dim=1)
 
-            # Now the GNN knows "local neighbor distance" AND "global room info" (if enabled)
+            # Now the GNN knows "local neighbor distance"
             out_spatial = self.conv_spatial(x_spatial_in, batch)
             out_persistence = self.conv_persistence(x_persistence_in, batch)
             

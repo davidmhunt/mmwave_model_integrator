@@ -10,14 +10,25 @@ model = dict(
     in_channels=None,
     use_gnn=True,
     use_global_context=True,
-    encoded_global_dim=3
+    global_dim=32,
+    use_fourier_features=True
 )
-config_label = "IcaRAus_Ruiyang_test_model_IcaRAus_ds_global_gnn"
+config_label = "IcaRAus_Ruiyang_test_model_IcaRAus_ds_gnn_global_focal"
 dataset_label = "IcaRAus_gnn_50fh"
 
 generated_dataset = dict(
     generated_dataset_path="/home/david/Downloads/IcaRAus_datasets/{}_train".format(dataset_label)
 )
+
+loss_fn = dict(
+    type='FocalLoss',
+    alpha=0.10,
+    gamma=3.0
+)
+
+# loss_fn = dict(
+#     pos_weight = torch.tensor([0.40])
+# )
 
 trainer = dict(
     model = model,
@@ -25,9 +36,7 @@ trainer = dict(
         enable_downsampling=False,
         downsample_keep_ratio=0.20
     ),
-    loss_fn = dict(
-        pos_weight = torch.tensor([0.40])
-    ),
+    loss_fn = loss_fn,
     dataset_path = generated_dataset["generated_dataset_path"],
     save_name = "{}".format(config_label),
     cuda_device="cuda:0"

@@ -19,8 +19,8 @@ generated_dataset = dict(
 trainer = dict(
     model = model,
     dataset = dict(
-        enable_downsampling=False,
-        downsample_keep_ratio=0.20
+        enable_downsampling=True,
+        downsample_keep_ratio=0.50
     ),
     loss_fn = dict(
         pos_weight = torch.tensor([0.40])
