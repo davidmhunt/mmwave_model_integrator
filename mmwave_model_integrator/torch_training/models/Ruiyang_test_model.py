@@ -1,101 +1,168 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch_geometric.nn import DynamicEdgeConv
+from torch_geometric.utils import to_dense_batch
 
-class RuiyangTestModel(torch.nn.Module):
+class LinearAttentionLayer(nn.Module):
     """
-    A Two-Stream Spatio-Temporal Graph Neural Network for radar point cloud processing.
-
-    This model explicitly separates spatial geometry from temporal persistence using two parallel streams:
-    1. Spatial Stream: Processes static 3D geometry (x, y, z) to detect shapes.
-    2. Persistence Stream: Processes 4D data (x, y, z, t) to detect stable features over time.
-
-    The streams are fused later to make a final classification decision.
+    O(N) Linear Attention using the ELU kernel trick.
+    Formula: V_out = (phi(Q) * (phi(K)^T * V)) / (phi(Q) * sum(phi(K)^T))
     """
+    def __init__(self, dim, num_heads=4, dropout=0.1):
+        super().__init__()
+        self.num_heads = num_heads
+        self.head_dim = dim // num_heads
+        self.scale = self.head_dim ** -0.5
+        
+        self.q_proj = nn.Linear(dim, dim)
+        self.k_proj = nn.Linear(dim, dim)
+        self.v_proj = nn.Linear(dim, dim)
+        self.out_proj = nn.Linear(dim, dim)
+        self.dropout = nn.Dropout(dropout)
+
+    def feature_map(self, x):
+        return F.elu(x) + 1  # ELU kernel ensures positivity
+
+    def forward(self, x, mask=None):
+        B, N, C = x.shape
+        q = self.q_proj(x).view(B, N, self.num_heads, self.head_dim).transpose(1, 2)
+        k = self.k_proj(x).view(B, N, self.num_heads, self.head_dim).transpose(1, 2)
+        v = self.v_proj(x).view(B, N, self.num_heads, self.head_dim).transpose(1, 2)
+        
+        q, k = self.feature_map(q), self.feature_map(k)
+        
+        # Linear Attention: Q @ (K.T @ V)
+        kv = torch.matmul(k.transpose(-2, -1), v)
+        z = 1 / (torch.matmul(q, k.sum(dim=-2, keepdim=True).transpose(-2, -1)) + 1e-6)
+        attn_out = torch.matmul(q, kv) * z
+        
+        return self.out_proj(attn_out.transpose(1, 2).reshape(B, N, C))
+
+class GlobalContextStem(nn.Module):
+    """
+    Runs a lightweight Linear Transformer on the full point cloud
+    to generate a 'Global Context' vector for every point.
+    """
+    def __init__(self, in_channels, global_dim=32, layers=2):
+        super().__init__()
+        self.input_emb = nn.Linear(in_channels, global_dim)
+        
+        # Positional Encoding (Crucial for Transformers)
+        self.pos_emb = nn.Linear(3, global_dim) 
+        
+        self.layers = nn.ModuleList([
+            nn.ModuleList([
+                LinearAttentionLayer(global_dim),
+                nn.LayerNorm(global_dim),
+                nn.Sequential(
+                    nn.Linear(global_dim, global_dim * 2), 
+                    nn.ReLU(), 
+                    nn.Linear(global_dim * 2, global_dim)
+                ),
+                nn.LayerNorm(global_dim)
+            ]) for _ in range(layers)
+        ])
+
+    def forward(self, x, pos, batch):
+        # 1. Unstack to Dense Batch [B, N, C]
+        x_dense, mask = to_dense_batch(x, batch)
+        pos_dense, _ = to_dense_batch(pos, batch)
+        
+        # 2. Embed
+        h = self.input_emb(x_dense) + self.pos_emb(pos_dense)
+        
+        # 3. Process
+        for attn, norm1, ffn, norm2 in self.layers:
+            h = norm1(h + attn(h))
+            h = norm2(h + ffn(h))
+            
+        # 4. Restack to PyG format [Total_Points, C]
+        return h[mask]
+
+class RuiyangTestModel(nn.Module):
     def __init__(self,
         hidden_channels=32,
         out_channels=1,
         k=20,
         dropout=0.5,
+        use_gnn=True,
+        use_global_context=True,
+        encoded_global_dim=4,
         **kwargs):
-        """
-        Initializes the TwoStreamSpatioTemporalGnn model.
-
-        Args:
-            hidden_channels (int): Dimension of internal feature embeddings.
-            out_channels (int): Number of output classes (e.g., 1 for binary classification).
-            k (int): Number of neirest neighbors. 20 is typically optimal for capturing local planar structures.
-            dropout (float): Dropout probability for regularization.
-            **kwargs: Additional keyword arguments (unused).
-        """
         super().__init__()
         self.k = k
-        encoder_channels = 8
+        self.use_gnn = use_gnn
+        self.use_global_context = use_global_context
+        
+        # --- 1. Norms ---
+        self.spatial_norm = nn.BatchNorm1d(3)
+        self.time_norm = nn.BatchNorm1d(1)
 
-        # --- 1. Robust Input Normalization ---
-        # We split normalization because Space and Time have different physics.
-        # BatchNorm allows the model to learn the optimal scaling ratio between 
-        # "1 meter" and "1 second" automatically.
-        self.spatial_norm = nn.BatchNorm1d(3) # Normalizes x,y,z
-        self.time_norm = nn.BatchNorm1d(1)    # Normalizes time
+        # --- 2. Global Context Stem ---
+        # Adds 'global_dim' features to every point
+        global_dim = 32
+        if self.use_global_context:
+            self.global_stem = GlobalContextStem(in_channels=4, global_dim=global_dim, layers=2)
+        else:
+            global_dim = 0 # No global context features
 
-        # --- 1a. Input Encoding (MLP Layers) ---
-        # Before GNNs, we encode the raw inputs into a higher-dimensional feature space.
-        self.spatial_encoder = nn.Sequential(
-            nn.Linear(3, encoder_channels),
-            nn.BatchNorm1d(encoder_channels),
-            nn.ReLU()
-        )
-
-        self.persistence_encoder = nn.Sequential(
-            nn.Linear(4, encoder_channels),  # 3 spatial + 1 time
-            nn.BatchNorm1d(encoder_channels),
-            nn.ReLU()
-        )
-
-        # --- 2. Spatial Stream (Geometry) ---
-        # Input: Encoded features (hidden_channels)
-        # EdgeConv constructs features [x_i, x_j - x_i] -> Dim: 2 * hidden_channels
-        self.conv_spatial = DynamicEdgeConv(
-            nn=nn.Sequential(
-                nn.Linear(2 * encoder_channels, hidden_channels),
-                nn.BatchNorm1d(hidden_channels),
-                nn.ReLU(),
-                nn.Linear(hidden_channels, hidden_channels),
-                nn.BatchNorm1d(hidden_channels),
+        # --- 2a. Global Context Compression ---
+        # Compress global features before feeding to GNN to save compute
+        gnn_global_dim = global_dim
+        if self.use_gnn and self.use_global_context and encoded_global_dim < global_dim:
+            self.global_context_encoder = nn.Sequential(
+                nn.Linear(global_dim, encoded_global_dim),
+                nn.BatchNorm1d(encoded_global_dim),
                 nn.ReLU()
-            ), k=k, aggr='max')
+            )
+            gnn_global_dim = encoded_global_dim
+        else:
+            self.global_context_encoder = None
 
-        # --- 3. Persistence Stream (Stability) ---
-        # Input: Encoded features (hidden_channels)
-        # EdgeConv constructs features [x_i, x_j - x_i] -> Dim: 2 * hidden_channels
-        self.conv_persistence = DynamicEdgeConv(
-            nn=nn.Sequential(
-                nn.Linear(2 * encoder_channels, hidden_channels),
-                nn.BatchNorm1d(hidden_channels),
-                nn.ReLU(),
-                nn.Linear(hidden_channels, hidden_channels),
-                nn.BatchNorm1d(hidden_channels),
-                nn.ReLU()
-            ), k=k, aggr='max')
+        # --- 3. Spatial Stream (Geometry) ---
+        # Input: 3 (Coords) + gnn_global_dim
+        # The EdgeConv dimension increases because we append the context
+        if self.use_gnn:
+            self.conv_spatial = DynamicEdgeConv(
+                nn=nn.Sequential(
+                    nn.Linear((3 + gnn_global_dim) * 2, hidden_channels), # *2 because EdgeConv concats (x_i, x_j - x_i)
+                    nn.BatchNorm1d(hidden_channels),
+                    nn.ReLU(),
+                    nn.Linear(hidden_channels, hidden_channels),
+                    nn.BatchNorm1d(hidden_channels),
+                    nn.ReLU()
+                ), k=k, aggr='max')
 
-        # --- 4. Fusion Layer ---
-        # Combines Geometry (Is it a wall?) + Persistence (Has it been here a while?)
-        # fusion_dim = hidden_channels * 2
-        # self.conv_fusion = DynamicEdgeConv(
-        #     nn=nn.Sequential(
-        #         nn.Linear(fusion_dim * 2, fusion_dim),
-        #         nn.BatchNorm1d(fusion_dim),
-        #         nn.ReLU(),
-        #         nn.Linear(fusion_dim, fusion_dim),
-        #         nn.BatchNorm1d(fusion_dim),
-        #         nn.ReLU()
-        #     ), k=k, aggr='max')
+            # --- 4. Persistence Stream (Stability) ---
+            # Input: 4 (Coords+Time) + gnn_global_dim
+            self.conv_persistence = DynamicEdgeConv(
+                nn=nn.Sequential(
+                    nn.Linear((4 + gnn_global_dim) * 2, hidden_channels),
+                    nn.BatchNorm1d(hidden_channels),
+                    nn.ReLU(),
+                    nn.Linear(hidden_channels, hidden_channels),
+                    nn.BatchNorm1d(hidden_channels),
+                    nn.ReLU()
+                ), k=k, aggr='max')
 
-        # --- 5. Classifier ---
-        # Concatenate all features: Spatial + Persistence + Fused
-        # total_dim = hidden_channels + hidden_channels + fusion_dim
-        total_dim = hidden_channels + hidden_channels
+        # --- 5. Fusion & Classifier ---
+        # We removed the heavy Fusion GNN as per your optimization
+        # Just simple concatenation + MLP
+        
+        # Calculate total dimension based on active components
+        total_dim = 0
+        if self.use_gnn:
+            total_dim += hidden_channels * 2 # Spatial + Persistence
+        
+        if self.use_global_context:
+            total_dim += global_dim
+            
+        # If no features are selected (edge case), ensure at least some dimension or handle error
+        # Assuming at least one is True or user knows what they are doing.
+        # But if GNN is OFF, we probably want to pass the raw/global features to classifier?
+        # The user said: "send the output of the attention layer directly to the final classifier".
+        # So if use_gnn is False, and use_global_context is True, total_dim = global_dim.
         
         self.classifier = nn.Sequential(
             nn.Linear(total_dim, 128),
@@ -106,48 +173,58 @@ class RuiyangTestModel(torch.nn.Module):
         )
 
     def forward(self, x, batch=None):
-        """
-        Forward pass of the model.
-
-        Args:
-            x (torch.Tensor): Input tensor of shape [Num_Points, 4]. Columns: x, y, z, normalized_frame_time.
-            batch (torch.Tensor, optional): Batch vector indicating sample membership.
-
-        Returns:
-            torch.Tensor: Output logits.
-        """
         # x: [N, 4] -> x, y, z, normalized_frame_time
         
-        # --- A. Split & Normalize ---
-        # Spatial: Normalize x,y,z to be roughly unit variance
+        # --- A. Normalization ---
         pos = x[:, :3]
         x_spatial_norm = self.spatial_norm(pos)
         
-        # Time: Normalize time (critical for the persistence stream)
         time = x[:, 3].unsqueeze(1)
         x_time_norm = self.time_norm(time)
         
-        # Create the 4D input for the persistence stream
-        x_persistence_input = torch.cat([x_spatial_norm, x_time_norm], dim=1)
+        # --- B. NEW: Global Context Extraction ---
+        # Run Linear Attention on the FULL cloud
+        # global_ctx: [N, 32]
+        if self.use_global_context:
+            global_ctx = self.global_stem(x, pos, batch)
+        else:
+            global_ctx = None
 
-        # --- B. Stream Processing ---
-        # Encode inputs
-        x_spatial_encoded = self.spatial_encoder(x_spatial_norm)
-        x_persistence_encoded = self.persistence_encoder(x_persistence_input)
+        # --- C. Stream Processing ---
+        features_list = []
+        
+        if self.use_gnn:
+            # Prepare Stream Inputs
+            # Validation: if use_global_context is False, global_ctx is None.
+            # We need to handle concatenation.
+            
+            gnn_ctx = global_ctx
+            if self.use_global_context:
+                if self.global_context_encoder is not None:
+                    gnn_ctx = self.global_context_encoder(global_ctx)
+                
+                # Spatial Input: [Norm_XYZ, Encoded_Global_Ctx]
+                x_spatial_in = torch.cat([x_spatial_norm, gnn_ctx], dim=1)
+                # Persistence Input: [Norm_XYZ, Norm_Time, Encoded_Global_Ctx]
+                x_persistence_in = torch.cat([x_spatial_norm, x_time_norm, gnn_ctx], dim=1)
+            else:
+                # Spatial Input: [Norm_XYZ]
+                x_spatial_in = x_spatial_norm
+                # Persistence Input: [Norm_XYZ, Norm_Time]
+                x_persistence_in = torch.cat([x_spatial_norm, x_time_norm], dim=1)
 
-        # Stream 1: Finds geometric shapes (walls, desks)
-        # It ignores time, so it effectively "collapses" the video into a single 3D scan.
-        out_spatial = self.conv_spatial(x_spatial_encoded, batch)
+            # Now the GNN knows "local neighbor distance" AND "global room info" (if enabled)
+            out_spatial = self.conv_spatial(x_spatial_in, batch)
+            out_persistence = self.conv_persistence(x_persistence_in, batch)
+            
+            features_list.append(out_spatial)
+            features_list.append(out_persistence)
+            
+        if self.use_global_context:
+            features_list.append(global_ctx)
 
-        # Stream 2: Finds stable clusters
-        # By using x,y,z,t, it will only connect points that are close in space AND time.
-        # Transient noise (random blips) will likely lack neighbors in this 4D space.
-        out_persistence = self.conv_persistence(x_persistence_encoded, batch)
-
-        # --- C. Fusion & Output ---
-        combined = torch.cat([out_spatial, out_persistence], dim=1)
-        # out_fused = self.conv_fusion(combined, batch)
-        # final_concat = torch.cat([out_spatial, out_persistence, out_fused], dim=1)
-        final_concat = combined
+        # --- E. Final Classification ---
+        # Combine: Spatial + Persistence + Global Context
+        final_concat = torch.cat(features_list, dim=1)
         
         return self.classifier(final_concat)

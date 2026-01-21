@@ -7,9 +7,12 @@ model = dict(
     out_channels=1,
     k=4,
     dropout=0.1,
-    in_channels=None
+    in_channels=None,
+    use_gnn=True,
+    use_global_context=True,
+    encoded_global_dim=3
 )
-config_label = "IcaRAus_TwoStreamSpatioTemporalGnn_IcaRAus_ds_50fh_k4"
+config_label = "IcaRAus_Ruiyang_test_model_IcaRAus_ds_global_gnn"
 dataset_label = "IcaRAus_gnn_50fh"
 
 generated_dataset = dict(
