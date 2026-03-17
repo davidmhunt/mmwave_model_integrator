@@ -2,7 +2,6 @@ import numpy as np
 
 from mmwave_radar_processing.config_managers.cfgManager import ConfigManager
 from mmwave_radar_processing.processors.virtual_array_reformater import VirtualArrayReformatter
-from mmwave_radar_processing.processors.range_azmith_resp import RangeAzimuthProcessor
 
 from mmwave_model_integrator.input_encoders._radar_range_az_encoder import _RadarRangeAzEncoder
 
@@ -78,7 +77,8 @@ class RadCloudEncoder(_RadarRangeAzEncoder):
             #(returns magnitude of the response)
             rng_az_resp = self.range_azimuth_processor.process(
                 adc_cube=adc_data_cube,
-                chirp_idx=i)
+                chirp_idx=i,
+                perform_windowing=False)
             
             #convert to dB
             rng_az_resp = 20 * np.log10(rng_az_resp)

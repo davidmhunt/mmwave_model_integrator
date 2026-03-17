@@ -48,7 +48,7 @@ class _RadarRangeAzEncoder(_InputEncoder):
         #configure range azimuth processor
         self.range_azimuth_processor = RangeAngleProcessor(
             config_manager=self.config_manager,
-            num_angle_bins=self.num_az_angle_bins
+            num_angle_bins=self.num_az_angle_bins,
         )
 
         #configure virtual array reformatter
