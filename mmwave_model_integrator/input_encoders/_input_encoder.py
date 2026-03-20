@@ -34,4 +34,6 @@ class _InputEncoder:
                 into the model
         """
         
-        return
+        self.full_encoding_ready=True
+
+        return input_data

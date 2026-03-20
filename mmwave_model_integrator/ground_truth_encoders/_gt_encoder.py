@@ -33,7 +33,9 @@ class _GTEncoder:
             np.ndarray: np.ndarray consisting of the output data
                 encoding
         """
-        pass
+        self.full_encoding_ready = True
+
+        return gt_data
 
     def reset(self):
         """Implemented by child class to reset encoder history (if applicable)
