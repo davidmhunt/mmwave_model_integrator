@@ -35,7 +35,7 @@ class _GTEncoder:
         """
         self.full_encoding_ready = True
 
-        return gt_data
+        return gt_data.astype(np.uint8)
 
     def reset(self):
         """Implemented by child class to reset encoder history (if applicable)
