@@ -13,5 +13,5 @@ config_label = "IcaRAus_TwoStreamSpatioTemporalGnn"
 
 trainer = dict(
     model = model,
-    save_name = "{}".format(config_label)
+    save_name = "{}".format(config_label),
 )
