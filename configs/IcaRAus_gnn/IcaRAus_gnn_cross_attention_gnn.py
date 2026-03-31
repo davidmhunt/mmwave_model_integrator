@@ -1,4 +1,3 @@
-from grpc import insecure_channel
 import torch
 
 _base_ = ["IcaRAus_gnn_base.py"]
@@ -15,6 +14,10 @@ config_label = "IcaRAus_CrossAttentionGnn"
 
 trainer = dict(
     model = model,
+    loss_fn = dict(
+        type='BCEWithLogitsLoss',
+        pos_weight=torch.tensor([0.25])
+    ),
     save_name = "{}".format(config_label),
     dataset = dict(
         type='_GnnNodeDataset',

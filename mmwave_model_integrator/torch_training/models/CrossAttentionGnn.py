@@ -9,7 +9,8 @@ class CrossAttentionGnn(torch.nn.Module):
                  hidden_channels=64, # Latent dimension
                  num_super_nodes=128, 
                  k=20,
-                 num_heads=4):
+                 num_heads=4,
+                 **kwargs):
         super().__init__()
         self.k = k
         self.m = num_super_nodes 
@@ -45,7 +46,7 @@ class CrossAttentionGnn(torch.nn.Module):
             nn.Linear(hidden_channels, out_channels)
         )
 
-    def forward(self, x, batch=None):
+    def forward(self, x, batch=None, return_intermediate=False):
         if batch is None:
             batch = torch.zeros(x.size(0), dtype=torch.long, device=x.device)
 
@@ -60,10 +61,22 @@ class CrossAttentionGnn(torch.nn.Module):
         # Phase 3: Cross-Attention Context
         q = h_local.unsqueeze(0) # [1, N, hidden]
         # attn_output: [1, N, hidden]
-        attn_output, _ = self.cross_attn(q, h_super, h_super)
+        attn_output, attn_weights = self.cross_attn(
+            q, h_super, h_super, 
+            need_weights=return_intermediate
+        )
         h_context = attn_output.squeeze(0) 
 
         # Phase 4: Final Decision
         # Concatenate Local + Global Context
         fused = torch.cat([h_local, h_context], dim=1) # [N, hidden * 2]
-        return self.classifier(fused)
+        out = self.classifier(fused)
+        
+        if return_intermediate:
+            return out, {
+                "h_local": h_local,
+                "indices": indices,
+                "h_context": h_context,
+                "attn_weights": attn_weights.squeeze(0) if attn_weights is not None else None
+            }
+        return out

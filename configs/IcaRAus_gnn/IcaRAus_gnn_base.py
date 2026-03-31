@@ -13,8 +13,8 @@ dataset_label = "IcaRAus_ugv_gnn_50fh_wilk_cpsl_north_1st_occluded_no_rt_gt_no_r
 generated_dataset = dict(
     input_encoding_folder="nodes",
     ground_truth_encoding_folder="labels",
-    # generated_dataset_path="/home/david/Downloads/{}_train".format(dataset_label)
-    generated_dataset_path="/data/IcaRAus/generated_datasets/{}_train".format(dataset_label)
+    generated_dataset_path="/home/david/Downloads/IcaRAus_datasets/{}_train".format(dataset_label)
+    # generated_dataset_path="/data/IcaRAus/generated_datasets/{}_train".format(dataset_label)
 )
 
 trainer = dict(

@@ -198,3 +198,173 @@ class PlotterGnnPCProcessing(_Plotter):
 
         if show:
             plt.show()
+
+    def plot_multi_instance_compilation(
+            self,
+            instances_nodes: list,
+            instances_labels: list,
+            input_encoder: _NodeEncoder,
+            ground_truth_encoder: _GTNodeEncoder,
+            runner: GNNRunner,
+            save_path: str = None,
+            show: bool = False
+    ):
+        """Plot a compilation of multiple instances (e.g. 5x3 grids). 
+        
+        Args:
+            instances_nodes (list of np.ndarray): List of input nodes.
+            instances_labels (list of np.ndarray): List of gt labels.
+            input_encoder (_NodeEncoder): Encoder for inputs.
+            ground_truth_encoder (_GTNodeEncoder): Encoder for GT.
+            runner (GNNRunner): Model runner.
+            save_path (str, optional): Path to save the resulting .png file.
+            show (bool, optional): Whether to display the plot.
+        """
+        num_instances = len(instances_nodes)
+        fig, axs = plt.subplots(num_instances, 3, figsize=(15, 5 * num_instances))
+        fig.subplots_adjust(wspace=0.3, hspace=0.30)
+        
+        # Ensure axs is always 2D
+        if num_instances == 1:
+            axs = np.expand_dims(axs, axis=0)
+
+        for i in range(num_instances):
+            nodes = instances_nodes[i]
+            labels = instances_labels[i]
+            self.plot_compilation(
+                input_data=nodes,
+                gt_data=labels,
+                input_encoder=input_encoder,
+                ground_truth_encoder=ground_truth_encoder,
+                runner=runner,
+                axs=axs[i, :],
+                show=False
+            )
+            
+            # Add a row title or label to the first axis in the row
+            axs[i, 0].set_ylabel(f"Instance {i+1}\n\n" + axs[i, 0].get_ylabel(), fontsize=self.font_size_axis_labels, weight='bold')
+
+        plt.tight_layout()
+        if save_path:
+            plt.savefig(save_path, bbox_inches='tight')
+            print(f"Compilation saved to {save_path}")
+
+        if show:
+            plt.show()
+
+    def plot_forward_pass_analysis(
+            self,
+            nodes: np.ndarray,
+            model_outputs: dict,
+            gt_labels: np.ndarray = None,
+            save_path: str = None,
+            show: bool = False
+    ):
+        """Plot detailed ablation data from a forward pass.
+        
+        Args:
+            nodes (np.ndarray): Original (x,y,z,...) input nodes.
+            model_outputs (dict): Dictionary of intermediate outputs from the model.
+            gt_labels (np.ndarray, optional): Ground truth labels for the points.
+            save_path (str, optional): Path to save the figure to.
+            show (bool, optional): If True, shows the plot.
+        """
+        if model_outputs is None or "indices" not in model_outputs:
+            print("No intermediate model outputs found. Cannot plot forward pass analysis.")
+            return
+
+        h_local = model_outputs.get("h_local") # [N, hidden]
+        indices = model_outputs.get("indices") # [1, M]
+        h_context = model_outputs.get("h_context") # [1, N, hidden]
+        attn_weights = model_outputs.get("attn_weights") # [N, M]
+
+        # Extract numpy arrays safely (detach if needed, but plotting might pass cpu detached tensors or numpy)
+        # However, they usually come from PyTorch. Convert if tensor:
+        import torch
+        if isinstance(nodes, torch.Tensor):
+            nodes = nodes.detach().cpu().numpy()
+        
+        pts = nodes[:, 0:2] # just (x, y)
+        
+        def to_npy(t):
+            if isinstance(t, torch.Tensor):
+                return t.detach().cpu().numpy()
+            return t
+        
+        h_local_npy = to_npy(h_local) if h_local is not None else None
+        indices_npy = to_npy(indices) if indices is not None else None
+        attn_weights_npy = to_npy(attn_weights) if attn_weights is not None else None
+
+        fig, axs = plt.subplots(1, 5, figsize=(30, 6))
+        fig.subplots_adjust(wspace=0.3, hspace=0.30)
+        
+        # Helper to plot rotated points 
+        def transform_pts(points):
+            p = np.hstack((points[:,0:2], np.zeros(shape=(points.shape[0],1))))
+            r = Orientation.from_euler(yaw=90, degrees=True)
+            t = Transformation(rotation=r._orientation)
+            p = t.apply_transformation(p)
+            return p[:, 0:2]
+
+        pts_transformed = transform_pts(pts)
+
+        # 1. Base Point Cloud
+        axs[0].scatter(pts_transformed[:, 0], pts_transformed[:, 1], s=self.marker_size, color="blue", alpha=0.5, label="Input Points")
+        axs[0].set_title("Original Input")
+        
+        # 2. Local Activations (Magnitude of h_local)
+        if h_local_npy is not None:
+            # norm along feature dim
+            local_mags = np.linalg.norm(h_local_npy, axis=1)
+            sc = axs[1].scatter(pts_transformed[:, 0], pts_transformed[:, 1], c=local_mags, cmap='viridis', s=self.marker_size, alpha=0.8)
+            axs[1].set_title("Local Features (Magnitude)")
+            plt.colorbar(sc, ax=axs[1], fraction=0.046, pad=0.04, label="L2 Norm")
+        else:
+            axs[1].set_title("No Local Features Available")
+
+        # 3. Super-Nodes
+        axs[2].scatter(pts_transformed[:, 0], pts_transformed[:, 1], s=self.marker_size, color="gray", alpha=0.3, label="Input Points")
+        if indices_npy is not None:
+            sn_pts = pts_transformed[indices_npy.flatten()]
+            axs[2].scatter(sn_pts[:, 0], sn_pts[:, 1], s=self.marker_size * 3, marker='*', color="red", label="Super-nodes")
+            axs[2].set_title(f"Selected Super-nodes (n={sn_pts.shape[0]})")
+        else:
+            axs[2].set_title("No Super-nodes Available")
+        axs[2].legend()
+
+        # 4. Attention Focus (Total Attention Weight per point)
+        if attn_weights_npy is not None:
+            # Sum attention across super-nodes to see overall focus
+            total_attn = np.sum(attn_weights_npy, axis=1)
+            sc = axs[3].scatter(pts_transformed[:, 0], pts_transformed[:, 1], c=total_attn, cmap='plasma', s=self.marker_size, alpha=0.8)
+            axs[3].set_title("Cumulative Attention Focus")
+            plt.colorbar(sc, ax=axs[3], fraction=0.046, pad=0.04, label="Total Attention")
+        else:
+            axs[3].set_title("No Attention Weights Available")
+
+        # 5. Ground Truth
+        if gt_labels is not None:
+            self.plot_nodes(
+                nodes=nodes,
+                labels=gt_labels,
+                ax=axs[4],
+                title="Ground Truth",
+                show=False
+            )
+        else:
+            axs[4].set_title("No Ground Truth Available")
+
+        for ax in axs:
+            ax.set_xlim(left=-1 * self.plot_x_max, right=self.plot_x_max)
+            ax.set_ylim(bottom=-1 * self.plot_y_max, top=self.plot_y_max)
+            ax.set_xlabel("Y (m)", fontsize=self.font_size_axis_labels)
+            ax.set_ylabel("X (m)", fontsize=self.font_size_axis_labels)
+            ax.tick_params(labelsize=self.font_size_ticks)
+
+        plt.tight_layout()
+        if save_path:
+            plt.savefig(save_path, bbox_inches='tight')
+            print(f"Forward pass analysis saved to {save_path}")
+
+        if show:
+            plt.show()
