@@ -19,11 +19,13 @@ class GNNRunner(_ModelRunner):
             edge_radius=5.0,
             enable_downsampling=False,
             downsample_keep_ratio=0.5,
-            downsample_min_points=100
+            downsample_min_points=100,
+            print_stats=False
             ):
         
         self.edge_radius = edge_radius
         self.use_sigmoid = use_sigmoid
+        self.print_stats = print_stats
         
         #downsampling parameters
         self.enable_downsampling = enable_downsampling
@@ -136,7 +138,16 @@ class GNNRunner(_ModelRunner):
 
         pred = pred.cpu().detach().numpy()
         
+        if self.print_stats:
+            print(f"\n--- GNN Prediction Stats ---")
+            print(f"Min:  {pred.min():.4f}")
+            print(f"Max:  {pred.max():.4f}")
+            print(f"Mean: {pred.mean():.4f}")
+            print(f"Threshold: 0.50")
+            print(f"Points Kept: {np.sum(pred > 0.50)} / {len(pred)}")
+            print(f"---------------------------\n")
+
         #ensure x is back on cpu for indexing
         x = x.cpu().detach().numpy()
 
-        return x[pred > 0.55,:]
+        return x[pred > 0.50,:]

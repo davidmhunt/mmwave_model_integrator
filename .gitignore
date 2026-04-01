@@ -3,3 +3,4 @@
 *.mp4
 *.npy
 *working_dir
+*experiment_results

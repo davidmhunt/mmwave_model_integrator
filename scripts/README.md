@@ -29,17 +29,16 @@ If you already have a trained checkpoint and want to regenerate the plots or ana
 python run_IcaRAus_gnn_cross_attention_experiment.py --test_only
 ```
 
-### Customizing Paths and Parameters
-The script accepts several command-line arguments to override defaults:
+## Macro-Reasoning Experiment (Hierarchical GNN)
 
-- `--config_label`: The base name of your config file in `../configs/IcaRAus_gnn/` (e.g., `IcaRAus_gnn_cross_attention_gnn`).
-- `--dataset_path`: Override the path to your generated dataset.
-- `--checkpoint_path`: The file path to load/save the PyTorch model checkpoint (`.pth`).
-- `--num_instances`: The number of rows for the multi-instance comparison plot. Default is `5` (yielding a 5x3 figure).
-- `--output_dir`: The directory where generated `.png` plots will be saved. Default is `./experiment_results`.
-- `--analysis_idx`: The dataset index to pick for the detailed forward-pass analysis. Default is `1000`.
+The `run_macro_reasoning_experiment.py` script is designed for the `MacroReasoningGnn` architecture, which includes a secondary GNN layer for super-nodes to understand their spatial distribution before attention.
 
-**Example:**
+### Running the Macro-Reasoning Experiment
+
 ```bash
-python run_IcaRAus_gnn_cross_attention_experiment.py --test_only --num_instances 3 --analysis_idx 500 --output_dir ./my_awesome_results
+python run_macro_reasoning_experiment.py --test_only
 ```
+
+### Unique Features:
+- **Smart Super-Nodes Plot**: The forward pass analysis now includes a 6th panel (in a 2x3 grid) specifically visualizing the activations of the macro-reasoning GNN.
+- **Persistent Naming**: Resulting `.png` files are automatically prefixed with the `config_label` (e.g., `IcaRAus_MacroReasoningGnn_analysis_idx1000.png`) to prevent overwriting results from other architectures.

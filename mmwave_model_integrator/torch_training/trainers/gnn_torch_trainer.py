@@ -149,6 +149,13 @@ class GNNTorchTrainer(_BaseTorchTrainer):
         self.train_steps = len(self.train_dataset) // self.train_data_loader.batch_size
         self.test_steps = len(self.val_dataset) // self.val_data_loader.batch_size
 
+        if self.target_metric == "val_loss":
+            best_metric_value = float('inf')
+        elif self.target_metric == "val_f1":
+            best_metric_value = -float('inf')
+        else:
+            raise NotImplementedError("target_metric must be either val_loss or val_f1")
+
         for epoch in (tqdm(range(self.epochs), desc="Epoch", leave=False)):
             
             #put model into training mode
@@ -157,12 +164,6 @@ class GNNTorchTrainer(_BaseTorchTrainer):
             #initialize total training and validation loss
             total_train_loss = 0
             total_val_loss = 0
-            if self.target_metric == "val_loss":
-                best_metric_value = float('inf')
-            elif self.target_metric == "val_f1":
-                best_metric_value = -float('inf')
-            else:
-                raise NotImplementedError("target_metric must be either val_loss or val_f1")
             batch_num = 0
 
             #loss accumulation steps

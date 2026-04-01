@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+from matplotlib.collections import LineCollection
 import numpy as np
 
 from mmwave_model_integrator.input_encoders._node_encoder import _NodeEncoder
@@ -293,9 +294,12 @@ class PlotterGnnPCProcessing(_Plotter):
         
         h_local_npy = to_npy(h_local) if h_local is not None else None
         indices_npy = to_npy(indices) if indices is not None else None
+        h_super_context_npy = to_npy(model_outputs.get("h_super_context"))
+        super_edge_index_npy = to_npy(model_outputs.get("super_edge_index"))
+        intra_patch_attn_npy = to_npy(model_outputs.get("intra_patch_attn"))
         attn_weights_npy = to_npy(attn_weights) if attn_weights is not None else None
 
-        fig, axs = plt.subplots(1, 5, figsize=(30, 6))
+        fig, axs = plt.subplots(2, 3, figsize=(18, 12))
         fig.subplots_adjust(wspace=0.3, hspace=0.30)
         
         # Helper to plot rotated points 
@@ -308,53 +312,84 @@ class PlotterGnnPCProcessing(_Plotter):
 
         pts_transformed = transform_pts(pts)
 
-        # 1. Base Point Cloud
-        axs[0].scatter(pts_transformed[:, 0], pts_transformed[:, 1], s=self.marker_size, color="blue", alpha=0.5, label="Input Points")
-        axs[0].set_title("Original Input")
+        # [0, 0] 1. Base Point Cloud
+        axs[0, 0].scatter(pts_transformed[:, 0], pts_transformed[:, 1], s=self.marker_size, color="blue", alpha=0.5, label="Input Points")
+        axs[0, 0].set_title("1. Original Input")
         
-        # 2. Local Activations (Magnitude of h_local)
+        # [0, 1] 2. Local Activations (Magnitude of h_local)
         if h_local_npy is not None:
-            # norm along feature dim
             local_mags = np.linalg.norm(h_local_npy, axis=1)
-            sc = axs[1].scatter(pts_transformed[:, 0], pts_transformed[:, 1], c=local_mags, cmap='viridis', s=self.marker_size, alpha=0.8)
-            axs[1].set_title("Local Features (Magnitude)")
-            plt.colorbar(sc, ax=axs[1], fraction=0.046, pad=0.04, label="L2 Norm")
+            sc = axs[0, 1].scatter(pts_transformed[:, 0], pts_transformed[:, 1], c=local_mags, cmap='viridis', s=self.marker_size, alpha=0.8)
+            axs[0, 1].set_title("2. Local Features (Magnitude)")
+            plt.colorbar(sc, ax=axs[0, 1], fraction=0.046, pad=0.04, label="L2 Norm")
         else:
-            axs[1].set_title("No Local Features Available")
+            axs[0, 1].set_title("2. No Local Features")
 
-        # 3. Super-Nodes
-        axs[2].scatter(pts_transformed[:, 0], pts_transformed[:, 1], s=self.marker_size, color="gray", alpha=0.3, label="Input Points")
-        if indices_npy is not None:
-            sn_pts = pts_transformed[indices_npy.flatten()]
-            axs[2].scatter(sn_pts[:, 0], sn_pts[:, 1], s=self.marker_size * 3, marker='*', color="red", label="Super-nodes")
-            axs[2].set_title(f"Selected Super-nodes (n={sn_pts.shape[0]})")
-        else:
-            axs[2].set_title("No Super-nodes Available")
-        axs[2].legend()
-
-        # 4. Attention Focus (Total Attention Weight per point)
-        if attn_weights_npy is not None:
-            # Sum attention across super-nodes to see overall focus
-            total_attn = np.sum(attn_weights_npy, axis=1)
-            sc = axs[3].scatter(pts_transformed[:, 0], pts_transformed[:, 1], c=total_attn, cmap='plasma', s=self.marker_size, alpha=0.8)
-            axs[3].set_title("Cumulative Attention Focus")
-            plt.colorbar(sc, ax=axs[3], fraction=0.046, pad=0.04, label="Total Attention")
-        else:
-            axs[3].set_title("No Attention Weights Available")
-
-        # 5. Ground Truth
+        # [0, 2] 3. Ground Truth
         if gt_labels is not None:
             self.plot_nodes(
                 nodes=nodes,
                 labels=gt_labels,
-                ax=axs[4],
-                title="Ground Truth",
+                ax=axs[0, 2],
+                title="3. Ground Truth",
                 show=False
             )
         else:
-            axs[4].set_title("No Ground Truth Available")
+            axs[0, 2].set_title("3. No Ground Truth")
 
-        for ax in axs:
+        # [1, 0] 4. Selected Super-Nodes
+        axs[1, 0].scatter(pts_transformed[:, 0], pts_transformed[:, 1], s=self.marker_size, color="gray", alpha=0.3, label="Input Points")
+        if indices_npy is not None:
+            sn_pts = pts_transformed[indices_npy.flatten()]
+            axs[1, 0].scatter(sn_pts[:, 0], sn_pts[:, 1], s=self.marker_size * 3, marker='*', color="red", label="Super-nodes")
+            axs[1, 0].set_title(f"4. Selected Super-nodes (n={sn_pts.shape[0]})")
+        else:
+            axs[1, 0].set_title("4. No Super-nodes")
+        axs[1, 0].legend()
+
+        # [1, 1] 5. Smart Super-Nodes (Macro-Reasoning / PTv3)
+        axs[1, 1].scatter(pts_transformed[:, 0], pts_transformed[:, 1], s=self.marker_size, color="gray", alpha=0.1)
+        if h_super_context_npy is not None and indices_npy is not None:
+            sn_pts = pts_transformed[indices_npy.flatten()]
+            
+            if intra_patch_attn_npy is not None:
+                # --- Plot PTv3 Intra-Patch Attention Focus ---
+                sc = axs[1, 1].scatter(sn_pts[:, 0], sn_pts[:, 1], c=intra_patch_attn_npy, cmap='plasma', s=self.marker_size * 4, marker='*', alpha=1.0, zorder=2,
+                                        vmin=intra_patch_attn_npy.min(), vmax=intra_patch_attn_npy.max())
+                axs[1, 1].set_title("5. PTv3 Intra-Patch Focus")
+                plt.colorbar(sc, ax=axs[1, 1], fraction=0.046, pad=0.04, label="Patch Focal Weight")
+            else:
+                # --- Plot Traditional Edges & Macro-Reasoning ---
+                if super_edge_index_npy is not None:
+                    # Map indices back to the coordinate set of super-nodes
+                    src_pts = sn_pts[super_edge_index_npy[0]] # [E, 2]
+                    dst_pts = sn_pts[super_edge_index_npy[1]] # [E, 2]
+                    segments = np.stack([src_pts, dst_pts], axis=1) # [E, 2, 2]
+                    
+                    lc = LineCollection(segments, colors='gray', alpha=0.3, linewidths=0.5, zorder=1)
+                    axs[1, 1].add_collection(lc)
+
+                smart_mags = np.linalg.norm(h_super_context_npy, axis=1)
+                sc = axs[1, 1].scatter(sn_pts[:, 0], sn_pts[:, 1], c=smart_mags, cmap='plasma', s=self.marker_size * 4, marker='*', alpha=1.0, zorder=2,
+                                        vmin=smart_mags.min(), vmax=smart_mags.max())
+                axs[1, 1].set_title("5. Smart Super-Nodes (Macro-GNN)")
+                plt.colorbar(sc, ax=axs[1, 1], fraction=0.046, pad=0.04, label="GNN Activation")
+        else:
+            axs[1, 1].set_title("5. Super-Nodes Unavailable")
+
+        # [1, 2] 6. Max Attention Focus
+        if attn_weights_npy is not None:
+            # Show the strongest attention link for each point to see specific regions focused on
+            max_attn = np.max(attn_weights_npy, axis=1)
+            # DYNAMIC SCALING
+            sc = axs[1, 2].scatter(pts_transformed[:, 0], pts_transformed[:, 1], c=max_attn, cmap='magma', s=self.marker_size, alpha=0.8,
+                                    vmin=max_attn.min(), vmax=max_attn.max())
+            axs[1, 2].set_title("6. Max Attention Focus")
+            plt.colorbar(sc, ax=axs[1, 2], fraction=0.046, pad=0.04, label="Max Attention")
+        else:
+            axs[1, 2].set_title("6. No Attention Weights")
+
+        for ax in axs.flatten():
             ax.set_xlim(left=-1 * self.plot_x_max, right=self.plot_x_max)
             ax.set_ylim(bottom=-1 * self.plot_y_max, top=self.plot_y_max)
             ax.set_xlabel("Y (m)", fontsize=self.font_size_axis_labels)
@@ -364,7 +399,150 @@ class PlotterGnnPCProcessing(_Plotter):
         plt.tight_layout()
         if save_path:
             plt.savefig(save_path, bbox_inches='tight')
-            print(f"Forward pass analysis saved to {save_path}")
+            print(f"Deep EdgeConv analysis saved to {save_path}")
 
+        if show:
+            plt.show()
+
+    def plot_deep_edge_conv_diagnostic(
+            self,
+            nodes: np.ndarray,
+            gt_labels: np.ndarray,
+            predictions: np.ndarray,
+            save_path: str = None,
+            show: bool = False
+    ):
+        """Figure 1: Diagnostic overview (Input, GT, Prediction)."""
+        fig, axs = plt.subplots(1, 3, figsize=(18, 6))
+        fig.subplots_adjust(wspace=0.3)
+
+        def transform_pts(points):
+            p = np.hstack((points[:,0:2], np.zeros(shape=(points.shape[0],1))))
+            r = Orientation.from_euler(yaw=90, degrees=True)
+            t = Transformation(rotation=r._orientation)
+            p = t.apply_transformation(p)
+            return p[:, 0:2]
+
+        pts_transformed = transform_pts(nodes)
+
+        # 1.1 Original Input
+        axs[0].scatter(pts_transformed[:, 0], pts_transformed[:, 1], s=self.marker_size, color="blue", alpha=0.5)
+        axs[0].set_title("1. Original Input")
+        
+        # 1.2 Ground Truth
+        if gt_labels is not None:
+            valid_mask = (gt_labels == 1.0)
+            axs[1].scatter(pts_transformed[~valid_mask, 0], pts_transformed[~valid_mask, 1], s=self.marker_size, color="gray", alpha=0.3)
+            axs[1].scatter(pts_transformed[valid_mask, 0], pts_transformed[valid_mask, 1], s=self.marker_size, color="red", alpha=0.8, label="GT Valid")
+            axs[1].set_title("2. Ground Truth")
+            axs[1].legend()
+
+        # 1.3 Final Prediction
+        import torch
+        if isinstance(predictions, torch.Tensor):
+            predictions = predictions.detach().cpu().numpy()
+        sc = axs[2].scatter(pts_transformed[:, 0], pts_transformed[:, 1], c=predictions.flatten(), cmap='RdYlGn', s=self.marker_size, alpha=0.8)
+        axs[2].set_title("3. Model Prediction")
+        plt.colorbar(sc, ax=axs[2], label="Score")
+
+        for ax in axs:
+            ax.set_xlim(left=-1 * self.plot_x_max, right=self.plot_x_max)
+            ax.set_ylim(bottom=-1 * self.plot_y_max, top=self.plot_y_max)
+            ax.set_xlabel("Y (m)", fontsize=self.font_size_axis_labels)
+            ax.set_ylabel("X (m)", fontsize=self.font_size_axis_labels)
+
+        plt.tight_layout()
+        if save_path:
+            plt.savefig(save_path, bbox_inches='tight')
+        if show:
+            plt.show()
+
+    def plot_deep_edge_conv_layer_analysis(
+            self,
+            nodes: np.ndarray,
+            model_outputs: dict,
+            layer_predictions: list,
+            super_node_indices: np.ndarray = None,
+            save_path: str = None,
+            show: bool = False
+    ):
+        """Figure 2: Layer-wise graph and ablation readout."""
+        layer_indices = sorted(list(set([int(k.split('_')[1]) for k in model_outputs.keys() if k.startswith('layer_') and k.endswith('_features')])))
+        num_layers = len(layer_indices)
+        
+        fig, axs = plt.subplots(2, num_layers, figsize=(6 * num_layers, 12))
+        fig.subplots_adjust(wspace=0.3, hspace=0.3)
+        
+        # Ensure axs is always 2D
+        if num_layers == 1:
+            axs = np.expand_dims(axs, axis=1)
+
+        def transform_pts(points):
+            p = np.hstack((points[:,0:2], np.zeros(shape=(points.shape[0],1))))
+            r = Orientation.from_euler(yaw=90, degrees=True)
+            t = Transformation(rotation=r._orientation)
+            p = t.apply_transformation(p)
+            return p[:, 0:2]
+
+        pts_transformed = transform_pts(nodes)
+        
+        # If super-nodes are a subset, we need their transformed coords for the graph
+        if super_node_indices is not None:
+            pts_sn = pts_transformed[super_node_indices]
+        else:
+            pts_sn = pts_transformed
+
+        import torch
+        for idx, layer_idx in enumerate(layer_indices):
+            # --- TOP ROW: Global k-NN Graph (on super-nodes if indices provided) ---
+            ax_top = axs[0, idx]
+            feat_key = f"layer_{layer_idx}_features"
+            edge_key = f"layer_{layer_idx}_edge_index"
+            
+            features = model_outputs.get(feat_key)
+            if isinstance(features, torch.Tensor):
+                features = features.detach().cpu().numpy()
+            
+            # Draw Edges BEHIND (zorder=1)
+            edge_index = model_outputs.get(edge_key)
+            if edge_index is not None:
+                if isinstance(edge_index, torch.Tensor):
+                    edge_index = edge_index.detach().cpu().numpy()
+                
+                # Plot edges using the appropriate point set
+                src_pts = pts_sn[edge_index[0]]
+                dst_pts = pts_sn[edge_index[1]]
+                segments = np.stack([src_pts, dst_pts], axis=1)
+                
+                lc = LineCollection(segments, colors='blue', alpha=0.1, linewidths=0.3, zorder=1)
+                ax_top.add_collection(lc)
+
+            # Draw Nodes ON TOP (zorder=2)
+            feats_mag = np.linalg.norm(features, axis=1) if features is not None else np.zeros(pts_sn.shape[0])
+            sc = ax_top.scatter(pts_sn[:, 0], pts_sn[:, 1], c=feats_mag, cmap='viridis', s=self.marker_size * 1.5, alpha=0.9, zorder=2)
+            ax_top.set_title(f"Layer {layer_idx}: Super-Node Graph\n(Color by Activation)")
+            if idx == num_layers - 1:
+                plt.colorbar(sc, ax=ax_top, label="Magnitude")
+
+            # --- BOTTOM ROW: Ablation Readout (Full point cloud predictions) ---
+            ax_bot = axs[1, idx]
+            pred = layer_predictions[idx]
+            if isinstance(pred, torch.Tensor):
+                pred = pred.detach().cpu().numpy()
+            
+            sc_p = ax_bot.scatter(pts_transformed[:, 0], pts_transformed[:, 1], c=pred.flatten(), cmap='RdYlGn', s=self.marker_size, alpha=0.8)
+            ax_bot.set_title(f"Layer {layer_idx}: Full Prediction\n(Layers 0 to {layer_idx})")
+            if idx == num_layers - 1:
+                plt.colorbar(sc_p, ax=ax_bot, label="Score")
+
+        for ax in axs.flatten():
+            ax.set_xlim(left=-1 * self.plot_x_max, right=self.plot_x_max)
+            ax.set_ylim(bottom=-1 * self.plot_y_max, top=self.plot_y_max)
+            ax.set_xlabel("Y (m)", fontsize=self.font_size_axis_labels)
+            ax.set_ylabel("X (m)", fontsize=self.font_size_axis_labels)
+
+        plt.tight_layout()
+        if save_path:
+            plt.savefig(save_path, bbox_inches='tight')
         if show:
             plt.show()

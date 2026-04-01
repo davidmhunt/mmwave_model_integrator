@@ -8,6 +8,9 @@ from mmwave_model_integrator.torch_training.models.HierarchicalAnchorNet import 
 from mmwave_model_integrator.torch_training.models.Ruiyang_test_model import RuiyangTestModel
 from mmwave_model_integrator.torch_training.models.Radarize_models import ResNet18,ResNet18Micro,ResNet18Nano,ResNet50
 from mmwave_model_integrator.torch_training.models.CrossAttentionGnn import CrossAttentionGnn
+from mmwave_model_integrator.torch_training.models.MacroReasoningGnn import MacroReasoningGnn
+from mmwave_model_integrator.torch_training.models.PTv3OcclusionGnn import PTv3OcclusionGnn
+from mmwave_model_integrator.torch_training.models.DeepDynamicEdgeConvGnn import DeepDynamicEdgeConvGnn
 __all__ = [
     'RadCloudUnet',
     'RadarHDUnet',
@@ -21,5 +24,8 @@ __all__ = [
     'ResNet18Micro',
     'ResNet18Nano',
     'ResNet50',
-    'CrossAttentionGnn'
+    'CrossAttentionGnn',
+    'MacroReasoningGnn',
+    'PTv3OcclusionGnn',
+    'DeepDynamicEdgeConvGnn'
 ]
