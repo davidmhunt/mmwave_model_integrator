@@ -11,6 +11,7 @@ from mmwave_model_integrator.torch_training.models.CrossAttentionGnn import Cros
 from mmwave_model_integrator.torch_training.models.MacroReasoningGnn import MacroReasoningGnn
 from mmwave_model_integrator.torch_training.models.PTv3OcclusionGnn import PTv3OcclusionGnn
 from mmwave_model_integrator.torch_training.models.DeepDynamicEdgeConvGnn import DeepDynamicEdgeConvGnn
+from mmwave_model_integrator.torch_training.models.DensifyingDeepDynamicEdgeConvGnn import DensifyingDeepDynamicEdgeConvGnn
 __all__ = [
     'RadCloudUnet',
     'RadarHDUnet',
@@ -27,5 +28,6 @@ __all__ = [
     'CrossAttentionGnn',
     'MacroReasoningGnn',
     'PTv3OcclusionGnn',
-    'DeepDynamicEdgeConvGnn'
+    'DeepDynamicEdgeConvGnn',
+    'DensifyingDeepDynamicEdgeConvGnn'
 ]

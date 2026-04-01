@@ -15,15 +15,16 @@ from mmwave_model_integrator.input_encoders._node_encoder import _NodeEncoder
 from mmwave_model_integrator.ground_truth_encoders._gt_node_encoder import _GTNodeEncoder
 from mmwave_model_integrator.plotting.plotter_gnn_pc_processing import PlotterGnnPCProcessing
 from mmwave_model_integrator.model_runner.gnn_runner import GNNRunner
-from mmwave_model_integrator.torch_training.models.DeepDynamicEdgeConvGnn import DeepDynamicEdgeConvGnn
+from mmwave_model_integrator.torch_training.models.DensifyingDeepDynamicEdgeConvGnn import DensifyingDeepDynamicEdgeConvGnn
+from torch_scatter import scatter_add
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Run Deep DynamicEdgeConv GNN Experiment")
-    parser.add_argument("--config_label", type=str, default="IcaRAus_dynamic_edge_conv_gnn",
+    parser = argparse.ArgumentParser(description="Run Densifying Deep DynamicEdgeConv GNN Experiment")
+    parser.add_argument("--config_label", type=str, default="IcaRAus_densifying_deep_dynamic_edge_conv_gnn",
                         help="The config file name (without .py) to use.")
     parser.add_argument("--dataset_path", type=str, default="/home/david/Downloads/IcaRAus_datasets/IcaRAus_ugv_gnn_50fh_wilk_cpsl_north_1st_occluded_no_rt_gt_no_rt_pts_no_gt_filter_0_25_eps_10_min_20_sub_train",
                         help="Path to the dataset directory.")
-    parser.add_argument("--checkpoint_path", type=str, default="working_dir/IcaRAus_gnn_IcaRAus_ds/IcaRAus_DeepDynamicEdgeConvGnn.pth",
+    parser.add_argument("--checkpoint_path", type=str, default="working_dir/IcaRAus_gnn_IcaRAus_ds/IcaRAus_DensifyingDeepDynamicEdgeConvGnn.pth",
                         help="Path to load/save the model checkpoint.")
     parser.add_argument("--test_only", action="store_true",
                         help="Skip training and only run evaluation/plotting.")
@@ -35,16 +36,62 @@ def parse_args():
                         help="Dataset index to use for the layer-wise ablation analysis.")
     parser.add_argument("--print_stats", action="store_true",
                         help="Print prediction statistics during inference.")
+    parser.add_argument("--skip_benchmark", action="store_true",
+                        help="Skip performance benchmarking phase.")
     return parser.parse_args()
+
+def benchmark_model(runner, dataset, input_encoder, device_name, num_warmup=10, num_runs=100):
+    """Measures average inference time on a specific device."""
+    print(f"Running benchmark on {device_name}...")
+    
+    # Move model to target device
+    device = torch.device(device_name)
+    runner.model.to(device)
+    runner.device = device
+    runner.model.eval()
+
+    times = []
+    with torch.no_grad():
+        # Prepare test data (use a consistent frame)
+        nodes = dataset.get_node_data(0)
+        nodes_encoded = input_encoder.encode(nodes)
+        x = torch.tensor(nodes_encoded, dtype=torch.float32).to(device)
+
+        # Warmup
+        for _ in range(num_warmup):
+            _ = runner.model(x)
+        
+        if "cuda" in device_name:
+            torch.cuda.synchronize()
+
+        # Measurement
+        import time
+        for idx in range(num_runs):
+            start = time.perf_counter()
+            nodes = dataset.get_node_data(idx)
+            nodes_encoded = input_encoder.encode(nodes)
+            x = torch.tensor(nodes_encoded, dtype=torch.float32).to(device)
+            _ = runner.model(x)
+            if "cuda" in device_name:
+                torch.cuda.synchronize()
+            end = time.perf_counter()
+            times.append(end - start)
+
+    avg_time = np.mean(times)
+    std_time = np.std(times)
+    hz = 1.0 / avg_time
+    
+    print(f"  Average: {avg_time*1000:.2f} ms (+/- {std_time*1000:.2f} ms)")
+    print(f"  Throughput: {hz:.2f} Hz")
+    return avg_time, hz
 
 def main():
     args = parse_args()
     os.makedirs(args.output_dir, exist_ok=True)
 
-    print(f"--- Setting up Deep DynamicEdgeConv Experiment: {args.config_label} ---")
+    print(f"--- Setting up Densifying Deep DynamicEdgeConv Experiment: {args.config_label} ---")
     config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), f"../configs/IcaRAus_gnn/{args.config_label}.py"))
     
-    # Check if config exists
     if not os.path.exists(config_path):
         print(f"Error: Config file {config_path} not found.")
         sys.exit(1)
@@ -63,7 +110,6 @@ def main():
 
     print("\n--- Phase 2: Evaluation & Plotting ---")
     
-    # Initialize Dataset
     dataset = GnnNodeDS(
         dataset_path=args.dataset_path,
         node_folder="nodes",
@@ -74,22 +120,28 @@ def main():
     ground_truth_encoder = _GTNodeEncoder()
     plotter = PlotterGnnPCProcessing()
 
-    # Model Parameters from config
     config = Config(config_path)
     model_cfg = config.model
-    # Remove 'type' before passing to constructor
     model_type = model_cfg.pop('type')
-    model = DeepDynamicEdgeConvGnn(**model_cfg)
-
+    model = DensifyingDeepDynamicEdgeConvGnn(**model_cfg)
 
     dataset_cfg = config.trainer["dataset"]
-    enable_downsampling = dataset_cfg["enable_downsampling"]
-    downsample_keep_ratio = dataset_cfg["downsample_keep_ratio"]
-    downsample_min_points = dataset_cfg["downsample_min_points"]
+    enable_downsampling = dataset_cfg.get("enable_downsampling", False)
+    downsample_keep_ratio = dataset_cfg.get("downsample_keep_ratio", 1.0)
+    downsample_min_points = dataset_cfg.get("downsample_min_points", 0)
+    
+    # Check for checkpoint existence in test-only mode
+    if args.test_only and not os.path.exists(args.checkpoint_path):
+        print(f"\n[WARNING] Checkpoint not found at {args.checkpoint_path}")
+        print("Proceeding with Randomly Initialized weights for demonstration purposes.")
+        os.makedirs(os.path.dirname(args.checkpoint_path), exist_ok=True)
+        torch.save(model.state_dict(), args.checkpoint_path)
+        print(f"Temporary dummy checkpoint saved to {args.checkpoint_path}")
+
     runner = GNNRunner(
         model=model,
         state_dict_path=args.checkpoint_path,
-        cuda_device="cuda:1" if torch.cuda.is_available() else "cpu",
+        cuda_device="cuda:0" if torch.cuda.is_available() else "cpu",
         edge_radius=10.0,
         enable_downsampling=enable_downsampling,
         downsample_keep_ratio=downsample_keep_ratio,
@@ -119,13 +171,13 @@ def main():
         save_path=compilation_save_path,
         show=False
     )
+    print(f"Compilation saved to {compilation_save_path}")
 
-    # 2. Layer-wise Ablation Analysis
-    print(f"Generating Detailed Layer-wise Analysis for index {args.analysis_idx}...")
+    # 2. Detailed Layer-wise Analysis
+    print(f"Generating Detailed Densifying Layer-wise Analysis for index {args.analysis_idx}...")
     nodes = dataset.get_node_data(args.analysis_idx)
     labels = dataset.get_label_data(args.analysis_idx)
     
-    # NEW: Consistent Downsampling for Analysis
     if runner.enable_downsampling:
         num_points = nodes.shape[0]
         target_count = int(num_points * runner.downsample_keep_ratio)
@@ -133,8 +185,6 @@ def main():
         final_count = min(num_points, target_count)
         
         if final_count < num_points:
-            print(f"Downsampling analysis sample from {num_points} to {final_count} points...")
-            # Use deterministic seed for analysis stability
             np.random.seed(42)
             indices = np.random.permutation(num_points)[:final_count]
             nodes = nodes[indices]
@@ -148,35 +198,59 @@ def main():
         out, intermediates = runner.model(x, return_intermediate=True)
         final_predictions = torch.sigmoid(out).cpu().numpy()
 
-        # Perform "Up-to-Layer" Ablation Readout
-        # hidden_channels * num_layers is the total dimension of the classifier input
-        h_dim = runner.model.hidden_channels
-        total_layers = runner.model.num_layers
+        backbone_ints = intermediates["backbone"]
+        idx_sparse = intermediates["idx_sparse"]
+        x_sparse = intermediates["x_sparse"]
+        assign_idx = intermediates["assign_idx"]
+        
+        dense_idx, sparse_idx = assign_idx[0], assign_idx[1]
+        dist = torch.norm(x[dense_idx, :3] - x_sparse[sparse_idx, :3], dim=-1)
+        weights = 1.0 / (dist.pow(runner.model.p) + 1e-10)
+        total_weight = scatter_add(weights, dense_idx, dim=0, dim_size=x.size(0))
+        normalized_weights = weights / total_weight[dense_idx]
+        
+        # We need to manually densify each layer's accumulated super-node context
+        h_dim = runner.model.backbone.hidden_channels
+        total_layers = runner.model.backbone.num_layers
         
         layer_predictions = []
         for i in range(total_layers):
-            # 1. Get features from layers 0...i
-            features_up_to_i = [intermediates[f"layer_{j}_features"] for j in range(i + 1)]
-            fused_i = torch.cat(features_up_to_i, dim=1) # [N, h_dim * (i+1)]
+            features_up_to_i = [backbone_ints[f"layer_{j}_features"] for j in range(i + 1)]
+            fused_sparse_i = torch.cat(features_up_to_i, dim=1) # [N_sparse, h_dim * (i+1)]
             
-            # 2. If skip connections are used, we need to pad with zeros for the remaining layers
             padding_needed = h_dim * (total_layers - (i + 1))
             if padding_needed > 0:
-                padding = torch.zeros(fused_i.size(0), padding_needed, device=runner.device)
-                fused_padded = torch.cat([fused_i, padding], dim=1)
+                padding = torch.zeros(fused_sparse_i.size(0), padding_needed, device=runner.device)
+                fused_sparse_padded = torch.cat([fused_sparse_i, padding], dim=1)
             else:
-                fused_padded = fused_i
+                fused_sparse_padded = fused_sparse_i
+                
+            # Interpolate to dense points!
+            weighted_features = fused_sparse_padded[sparse_idx] * normalized_weights.unsqueeze(-1)
+            fused_dense_i = scatter_add(weighted_features, dense_idx, dim=0, dim_size=x.size(0))
             
-            # 3. Readout through the trained classifier
-            pred_i = torch.sigmoid(runner.model.classifier(fused_padded))
+            x_norm = runner.model.input_norm(x)
+            final_input = torch.cat([x_norm, fused_dense_i], dim=-1)
+            
+            pred_i = torch.sigmoid(runner.model.refiner(final_input))
             layer_predictions.append(pred_i.cpu().numpy())
+
+    nodes_sparse = nodes[idx_sparse.cpu().numpy()]
+    assign_idx_np = assign_idx.cpu().numpy()
 
     # --- FIGURE 1: Diagnostic ---
     diag_save_path = os.path.join(args.output_dir, f"{args.config_label}_diagnostic_idx{args.analysis_idx}.png")
-    plotter.plot_deep_edge_conv_diagnostic(
-        nodes=nodes,
+    
+    # Extract backbone output for coloring stars
+    out_sparse = intermediates.get("out_sparse") # Might be missing if old model
+    
+    plotter.plot_densifying_diagnostic(
+        nodes_dense=nodes,
+        nodes_sparse=nodes_sparse,
+        assign_idx=assign_idx_np,
         gt_labels=labels,
         predictions=final_predictions,
+        sparse_predictions=out_sparse,
         save_path=diag_save_path,
         show=False
     )
@@ -184,17 +258,28 @@ def main():
 
     # --- FIGURE 2: Layer Analysis ---
     analysis_save_path = os.path.join(args.output_dir, f"{args.config_label}_layer_analysis_idx{args.analysis_idx}.png")
-    plotter.plot_deep_edge_conv_layer_analysis(
-        nodes=nodes,
-        model_outputs=intermediates,
+    plotter.plot_densifying_layer_analysis(
+        nodes_dense=nodes,
+        nodes_sparse=nodes_sparse,
+        model_outputs=backbone_ints,
         layer_predictions=layer_predictions,
         save_path=analysis_save_path,
         show=False
     )
     print(f"Layer analysis figure saved to {analysis_save_path}")
 
-    print(f"\n--- Experiment Completed. Results saved to {args.output_dir} ---")
+    # --- PHASE 3: Benchmarking ---
+    if not args.skip_benchmark:
+        print("\n--- Phase 3: Performance Benchmarking ---")
+        
+        # 1. GPU Benchmark
+        if torch.cuda.is_available():
+            benchmark_model(runner, dataset, input_encoder, "cuda:0")
+        
+        # 2. CPU Benchmark
+        benchmark_model(runner, dataset, input_encoder, "cpu")
 
+    print(f"\n--- Experiment Completed. Results saved to {args.output_dir} ---")
 
 if __name__ == "__main__":
     main()

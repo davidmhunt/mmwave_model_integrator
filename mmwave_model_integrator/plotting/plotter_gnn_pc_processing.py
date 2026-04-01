@@ -546,3 +546,179 @@ class PlotterGnnPCProcessing(_Plotter):
             plt.savefig(save_path, bbox_inches='tight')
         if show:
             plt.show()
+
+    def plot_densifying_diagnostic(
+            self,
+            nodes_dense: np.ndarray,
+            nodes_sparse: np.ndarray,
+            assign_idx: np.ndarray,
+            gt_labels: np.ndarray,
+            predictions: np.ndarray,
+            sparse_predictions: np.ndarray = None,
+            save_path: str = None,
+            show: bool = False
+    ):
+        """Figure 1 for Densifying model: 2x3 Diagnostic Overview."""
+        fig, axs = plt.subplots(2, 3, figsize=(18, 12))
+        fig.subplots_adjust(wspace=0.3, hspace=0.3)
+
+        def transform_pts(points):
+            p = np.hstack((points[:,0:2], np.zeros(shape=(points.shape[0],1))))
+            r = Orientation.from_euler(yaw=90, degrees=True)
+            t = Transformation(rotation=r._orientation)
+            p = t.apply_transformation(p)
+            return p[:, 0:2]
+
+        pts_dense_tx = transform_pts(nodes_dense)
+        pts_sparse_tx = transform_pts(nodes_sparse)
+
+        import torch
+        if isinstance(predictions, torch.Tensor):
+            predictions = predictions.detach().cpu().numpy()
+        
+        # --- TOP ROW ---
+        # [0, 0] 1. Original Dense Input
+        axs[0, 0].scatter(pts_dense_tx[:,0], pts_dense_tx[:,1], s=self.marker_size, color="blue", alpha=0.5)
+        axs[0, 0].set_title("1. Original Dense Input", fontsize=self.font_size_title)
+        
+        # [0, 1] 2. Ground Truth
+        if gt_labels is not None:
+            valid_mask = (gt_labels == 1.0)
+            axs[0, 1].scatter(pts_dense_tx[~valid_mask, 0], pts_dense_tx[~valid_mask, 1], s=self.marker_size, color="gray", alpha=0.3)
+            axs[0, 1].scatter(pts_dense_tx[valid_mask, 0], pts_dense_tx[valid_mask, 1], s=self.marker_size, color="red", alpha=0.8, label="GT Valid")
+            axs[0, 1].set_title("2. Ground Truth", fontsize=self.font_size_title)
+            axs[0, 1].legend()
+
+        # [0, 2] 3. Final Model Decision (Binarized)
+        binary_pred = (predictions.flatten() > 0.5)
+        axs[0, 2].scatter(pts_dense_tx[~binary_pred, 0], pts_dense_tx[~binary_pred, 1], s=self.marker_size, color="gray", alpha=0.3)
+        axs[0, 2].scatter(pts_dense_tx[binary_pred, 0], pts_dense_tx[binary_pred, 1], s=self.marker_size, color="red", alpha=0.8, label="Predicted Valid")
+        axs[0, 2].set_title("3. Final Model Decision\n(Threshold > 0.5)", fontsize=self.font_size_title)
+        axs[0, 2].legend()
+
+        # --- BOTTOM ROW ---
+        # [1, 0] 4. Global Nodes & Weights (Sparse only)
+        if sparse_predictions is not None:
+            if isinstance(sparse_predictions, torch.Tensor):
+                sparse_predictions = torch.sigmoid(sparse_predictions).detach().cpu().numpy()
+            sc_s = axs[1, 0].scatter(pts_sparse_tx[:, 0], pts_sparse_tx[:, 1], c=sparse_predictions.flatten(), 
+                                     cmap='RdYlGn', s=self.marker_size * 2.5, marker='*', alpha=1.0, zorder=2, edgecolors='black', linewidths=0.2)
+            plt.colorbar(sc_s, ax=axs[1, 0], label="Backbone Score")
+        else:
+             axs[1, 0].scatter(pts_sparse_tx[:, 0], pts_sparse_tx[:, 1], s=self.marker_size * 2.5, marker='*', color="red", alpha=1.0, zorder=2)
+        axs[1, 0].set_title("4. Global Skeleton Activations", fontsize=self.font_size_title)
+
+        # [1, 1] 5. Local -> Global Mapping
+        axs[1, 1].scatter(pts_dense_tx[:, 0], pts_dense_tx[:, 1], s=self.marker_size, color="gray", alpha=0.05, zorder=0)
+        if assign_idx is not None:
+             if isinstance(assign_idx, torch.Tensor):
+                 assign_idx = assign_idx.detach().cpu().numpy()
+             dense_idx, sparse_idx = assign_idx[0], assign_idx[1]
+             segments = np.stack([pts_dense_tx[dense_idx], pts_sparse_tx[sparse_idx]], axis=1)
+             lc = LineCollection(segments, colors='green', alpha=0.1, linewidths=0.5, zorder=1)
+             axs[1, 1].add_collection(lc)
+        
+        # Vibrant stars on mapping plot
+        if sparse_predictions is not None:
+            axs[1, 1].scatter(pts_sparse_tx[:, 0], pts_sparse_tx[:, 1], c=sparse_predictions.flatten(), 
+                              cmap='RdYlGn', s=self.marker_size * 2.5, marker='*', alpha=1.0, zorder=2, edgecolors='black', linewidths=0.2)
+        else:
+            axs[1, 1].scatter(pts_sparse_tx[:, 0], pts_sparse_tx[:, 1], s=self.marker_size * 2.5, marker='*', color="red", alpha=1.0, zorder=2)
+        axs[1, 1].set_title("5. Local -> Global Mapping", fontsize=self.font_size_title)
+
+        # [1, 2] 6. Dense Model Prediction (Heatmap)
+        sc = axs[1, 2].scatter(pts_dense_tx[:, 0], pts_dense_tx[:, 1], c=predictions.flatten(), cmap='RdYlGn', s=self.marker_size, alpha=0.8)
+        axs[1, 2].set_title("6. Dense Model Heatmap", fontsize=self.font_size_title)
+        plt.colorbar(sc, ax=axs[1, 2], label="Score")
+
+        for ax in axs.flatten():
+            ax.set_xlim(left=-1 * self.plot_x_max, right=self.plot_x_max)
+            ax.set_ylim(bottom=-1 * self.plot_y_max, top=self.plot_y_max)
+            ax.set_xlabel("Y (m)", fontsize=self.font_size_axis_labels)
+            ax.set_ylabel("X (m)", fontsize=self.font_size_axis_labels)
+
+        plt.tight_layout()
+        if save_path:
+            plt.savefig(save_path, bbox_inches='tight')
+        if show:
+            plt.show()
+
+    def plot_densifying_layer_analysis(
+            self,
+            nodes_dense: np.ndarray,
+            nodes_sparse: np.ndarray,
+            model_outputs: dict,
+            layer_predictions: list,
+            save_path: str = None,
+            show: bool = False
+    ):
+        """Figure 2: Sparse k-NN graphs and densified ablation readout."""
+        layer_indices = sorted(list(set([int(k.split('_')[1]) for k in model_outputs.keys() if k.startswith('layer_') and k.endswith('_features')])))
+        num_layers = len(layer_indices)
+        
+        fig, axs = plt.subplots(2, num_layers, figsize=(6 * num_layers, 12))
+        fig.subplots_adjust(wspace=0.3, hspace=0.3)
+        
+        if num_layers == 1:
+            axs = np.expand_dims(axs, axis=1)
+
+        def transform_pts(points):
+            p = np.hstack((points[:,0:2], np.zeros(shape=(points.shape[0],1))))
+            r = Orientation.from_euler(yaw=90, degrees=True)
+            t = Transformation(rotation=r._orientation)
+            p = t.apply_transformation(p)
+            return p[:, 0:2]
+
+        pts_dense_tx = transform_pts(nodes_dense)
+        pts_sparse_tx = transform_pts(nodes_sparse)
+
+        import torch
+        for idx, layer_idx in enumerate(layer_indices):
+            # --- TOP ROW: Sparse k-NN Graph ---
+            ax_top = axs[0, idx]
+            feat_key = f"layer_{layer_idx}_features"
+            edge_key = f"layer_{layer_idx}_edge_index"
+            
+            features = model_outputs.get(feat_key)
+            if isinstance(features, torch.Tensor):
+                features = features.detach().cpu().numpy()
+            
+            edge_index = model_outputs.get(edge_key)
+            if edge_index is not None:
+                if isinstance(edge_index, torch.Tensor):
+                    edge_index = edge_index.detach().cpu().numpy()
+                src_pts = pts_sparse_tx[edge_index[0]]
+                dst_pts = pts_sparse_tx[edge_index[1]]
+                segments = np.stack([src_pts, dst_pts], axis=1)
+                
+                lc = LineCollection(segments, colors='blue', alpha=0.2, linewidths=0.8, zorder=1)
+                ax_top.add_collection(lc)
+
+            feats_mag = np.linalg.norm(features, axis=1) if features is not None else np.zeros(pts_sparse_tx.shape[0])
+            sc = ax_top.scatter(pts_sparse_tx[:, 0], pts_sparse_tx[:, 1], c=feats_mag, cmap='viridis', s=self.marker_size * 2, alpha=0.9, zorder=2)
+            ax_top.set_title(f"Layer {layer_idx}: Sparse Skeleton Graph")
+            if idx == num_layers - 1:
+                plt.colorbar(sc, ax=ax_top, label="Magnitude")
+
+            # --- BOTTOM ROW: Densified Ablation Readout ---
+            ax_bot = axs[1, idx]
+            pred = layer_predictions[idx]
+            if isinstance(pred, torch.Tensor):
+                pred = pred.detach().cpu().numpy()
+            
+            sc_p = ax_bot.scatter(pts_dense_tx[:, 0], pts_dense_tx[:, 1], c=pred.flatten(), cmap='RdYlGn', s=self.marker_size, alpha=0.8)
+            ax_bot.set_title(f"Layer {layer_idx}: Dense Prediction\n(Layers 0 to {layer_idx})")
+            if idx == num_layers - 1:
+                plt.colorbar(sc_p, ax=ax_bot, label="Score")
+
+        for ax in axs.flatten():
+            ax.set_xlim(left=-1 * self.plot_x_max, right=self.plot_x_max)
+            ax.set_ylim(bottom=-1 * self.plot_y_max, top=self.plot_y_max)
+            ax.set_xlabel("Y (m)", fontsize=self.font_size_axis_labels)
+            ax.set_ylabel("X (m)", fontsize=self.font_size_axis_labels)
+
+        plt.tight_layout()
+        if save_path:
+            plt.savefig(save_path, bbox_inches='tight')
+        if show:
+            plt.show()
