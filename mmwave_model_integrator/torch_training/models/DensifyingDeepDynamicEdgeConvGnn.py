@@ -16,12 +16,14 @@ class DensifyingDeepDynamicEdgeConvGnn(torch.nn.Module):
                  num_layers=4, 
                  k=20,
                  p=2.0, 
-                 num_sparse_points=200,
+                 num_sparse_points_fps=200,
+                 num_sparse_points_random_sampling=0,
                  dropout=0.5,
                  **kwargs):
         super().__init__()
         self.p = p # Power for Inverse Distance Weighting
-        self.num_sparse_points = num_sparse_points
+        self.num_sparse_points_fps = num_sparse_points_fps
+        self.num_sparse_points_random_sampling = num_sparse_points_random_sampling
         self.hidden_channels = hidden_channels
         self.num_layers = num_layers
         
@@ -51,14 +53,48 @@ class DensifyingDeepDynamicEdgeConvGnn(torch.nn.Module):
         if batch is None:
             batch = torch.zeros(x.size(0), dtype=torch.long, device=x.device)
 
-        # 1. SUBSAMPLE: Create the sparse skeleton
-        # fps takes a ratio. If we want num_sparse_points total, we compute ratio.
-        # This works correctly for batch_sizes > 1 as long as num_sparse_points per batch element is desired.
+        # 1. SUBSAMPLE: Create the sparse skeleton using hybrid sampling (Random + FPS)
         num_batches = int(batch.max().item() + 1) if batch.numel() > 0 else 1
-        target_sparse_points = self.num_sparse_points * num_batches
-        ratio = min(1.0, float(target_sparse_points) / float(max(1, x.size(0))))
+        
+        # 1a. Random Sampling
+        idx_random = []
+        if self.num_sparse_points_random_sampling > 0:
+            for b in range(num_batches):
+                mask = (batch == b)
+                indices = torch.where(mask)[0]
+                num_to_sample = min(self.num_sparse_points_random_sampling, indices.size(0))
+                if num_to_sample > 0:
+                    perm = torch.randperm(indices.size(0), device=x.device)[:num_to_sample]
+                    idx_random.append(indices[perm])
+        
+        if idx_random:
+            idx_random = torch.cat(idx_random)
+        else:
+            idx_random = torch.empty(0, dtype=torch.long, device=x.device)
 
-        idx_sparse = fps(x[:, :3], batch, ratio=ratio)
+        # 1b. FPS Sampling (on points not selected by random sampling)
+        idx_fps = torch.empty(0, dtype=torch.long, device=x.device)
+        if self.num_sparse_points_fps > 0:
+            remaining_mask = torch.ones(x.size(0), dtype=torch.bool, device=x.device)
+            remaining_mask[idx_random] = False
+            
+            x_remaining = x[remaining_mask]
+            batch_remaining = batch[remaining_mask]
+            
+            if x_remaining.size(0) > 0:
+                target_fps_points = self.num_sparse_points_fps * num_batches
+                ratio = min(1.0, float(target_fps_points) / float(x_remaining.size(0)))
+                
+                idx_fps_relative = fps(x_remaining[:, :3], batch_remaining, ratio=ratio)
+                idx_fps = torch.where(remaining_mask)[0][idx_fps_relative]
+
+        # Combine indices
+        idx_sparse = torch.cat([idx_random, idx_fps])
+        
+        # Ensure we have at least one point if both are 0 (edge case)
+        if idx_sparse.numel() == 0:
+            idx_sparse = torch.zeros(1, dtype=torch.long, device=x.device)
+
         x_sparse = x[idx_sparse]
         batch_sparse = batch[idx_sparse]
 

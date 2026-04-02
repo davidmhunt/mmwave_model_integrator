@@ -111,7 +111,7 @@ def main():
     print("\n--- Phase 2: Evaluation & Plotting ---")
     
     dataset = GnnNodeDS(
-        dataset_path=args.dataset_path,
+        dataset_path=config.generated_dataset["generated_dataset_path"],
         node_folder="nodes",
         label_folder="labels",
     )
