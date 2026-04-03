@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from torch_geometric.nn import knn, fps
+from torch_geometric.nn import knn, fps, radius_graph
 from torch_scatter import scatter, scatter_add
 from mmwave_model_integrator.torch_training.models.DeepDynamicEdgeConvGnn import DeepDynamicEdgeConvGnn
 
@@ -17,13 +17,17 @@ class DensifyingDeepDynamicEdgeConvGnn(torch.nn.Module):
                  k=20,
                  p=2.0, 
                  num_sparse_points_fps=200,
-                 num_sparse_points_random_sampling=0,
+                 use_density_filtering=False,
+                 density_eps=0.1,
+                 density_min_samples=5,
                  dropout=0.5,
                  **kwargs):
         super().__init__()
         self.p = p # Power for Inverse Distance Weighting
         self.num_sparse_points_fps = num_sparse_points_fps
-        self.num_sparse_points_random_sampling = num_sparse_points_random_sampling
+        self.use_density_filtering = use_density_filtering
+        self.density_eps = density_eps
+        self.density_min_samples = density_min_samples
         self.hidden_channels = hidden_channels
         self.num_layers = num_layers
         
@@ -53,45 +57,41 @@ class DensifyingDeepDynamicEdgeConvGnn(torch.nn.Module):
         if batch is None:
             batch = torch.zeros(x.size(0), dtype=torch.long, device=x.device)
 
-        # 1. SUBSAMPLE: Create the sparse skeleton using hybrid sampling (Random + FPS)
+        # 1. SUBSAMPLE: Create the sparse skeleton
         num_batches = int(batch.max().item() + 1) if batch.numel() > 0 else 1
         
-        # 1a. Random Sampling
-        idx_random = []
-        if self.num_sparse_points_random_sampling > 0:
-            for b in range(num_batches):
-                mask = (batch == b)
-                indices = torch.where(mask)[0]
-                num_to_sample = min(self.num_sparse_points_random_sampling, indices.size(0))
-                if num_to_sample > 0:
-                    perm = torch.randperm(indices.size(0), device=x.device)[:num_to_sample]
-                    idx_random.append(indices[perm])
-        
-        if idx_random:
-            idx_random = torch.cat(idx_random)
-        else:
-            idx_random = torch.empty(0, dtype=torch.long, device=x.device)
-
-        # 1b. FPS Sampling (on points not selected by random sampling)
-        idx_fps = torch.empty(0, dtype=torch.long, device=x.device)
-        if self.num_sparse_points_fps > 0:
-            remaining_mask = torch.ones(x.size(0), dtype=torch.bool, device=x.device)
-            remaining_mask[idx_random] = False
+        if self.use_density_filtering:
+            # 1a. Density Filtering: Identify core points
+            edge_index = radius_graph(x[:, :3], r=self.density_eps, batch=batch, loop=True)
+            ones = torch.ones(edge_index.size(1), device=x.device)
+            density = scatter_add(ones, edge_index[0], dim=0, dim_size=x.size(0))
+            is_core = density >= self.density_min_samples
             
-            x_remaining = x[remaining_mask]
-            batch_remaining = batch[remaining_mask]
+            # Map core points to their original indices
+            core_indices = torch.where(is_core)[0]
             
-            if x_remaining.size(0) > 0:
-                target_fps_points = self.num_sparse_points_fps * num_batches
-                ratio = min(1.0, float(target_fps_points) / float(x_remaining.size(0)))
+            if core_indices.numel() > 0:
+                # Run FPS only on the core points pool
+                x_pool = x[core_indices]
+                batch_pool = batch[core_indices]
                 
-                idx_fps_relative = fps(x_remaining[:, :3], batch_remaining, ratio=ratio)
-                idx_fps = torch.where(remaining_mask)[0][idx_fps_relative]
+                target_sparse_points = self.num_sparse_points_fps * num_batches
+                ratio = min(1.0, float(target_sparse_points) / float(x_pool.size(0)))
+                
+                idx_relative = fps(x_pool[:, :3], batch_pool, ratio=ratio)
+                idx_sparse = core_indices[idx_relative]
+            else:
+                # Fallback to standard FPS if no core points are found
+                target_sparse_points = self.num_sparse_points_fps * num_batches
+                ratio = min(1.0, float(target_sparse_points) / float(max(1, x.size(0))))
+                idx_sparse = fps(x[:, :3], batch, ratio=ratio)
+        else:
+            # 1b. Standard FPS (on all points)
+            target_sparse_points = self.num_sparse_points_fps * num_batches
+            ratio = min(1.0, float(target_sparse_points) / float(max(1, x.size(0))))
+            idx_sparse = fps(x[:, :3], batch, ratio=ratio)
 
-        # Combine indices
-        idx_sparse = torch.cat([idx_random, idx_fps])
-        
-        # Ensure we have at least one point if both are 0 (edge case)
+        # Ensure we have at least one point (edge case)
         if idx_sparse.numel() == 0:
             idx_sparse = torch.zeros(1, dtype=torch.long, device=x.device)
 

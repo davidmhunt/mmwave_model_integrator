@@ -11,7 +11,9 @@ model = dict(
     k=20,
     p=2.0,
     num_sparse_points_fps=200,
-    num_sparse_points_random_sampling=0,
+    use_density_filtering=False,
+    density_eps=0.1,
+    density_min_samples=5,
     dropout=0.5
 )
 

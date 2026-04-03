@@ -11,7 +11,9 @@ model = dict(
     k=20,
     p=2.0,
     num_sparse_points_fps=200,
-    num_sparse_points_random_sampling=100,
+    use_density_filtering=True,
+    density_eps=0.25,
+    density_min_samples=10,
     dropout=0.5
 )
 
@@ -22,7 +24,7 @@ generated_dataset = dict(
     generated_dataset_path="/home/david/Downloads/IcaRAus_datasets/{}_train".format(dataset_label)
 )
 
-config_label = "IcaRAus_DensifyingDeepDynamicEdgeConvGnn_grid_100fh_no_clustering_pts_70_fov_0_25_accu_subsample_100rs"
+config_label = "IcaRAus_DensifyingDeepDynamicEdgeConvGnn_grid_100fh_no_clustering_pts_70_fov_0_25_accu_subsample"
 
 trainer = dict(
     model = model,
@@ -56,5 +58,5 @@ trainer = dict(
     node_directory=generated_dataset["input_encoding_folder"],
     label_directory=generated_dataset["ground_truth_encoding_folder"],
     epochs=80,
-    cuda_device="cuda:0",
+    cuda_device="cuda:1",
 )
