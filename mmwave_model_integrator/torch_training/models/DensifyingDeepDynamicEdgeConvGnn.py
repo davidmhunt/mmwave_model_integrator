@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import time
 from torch_geometric.nn import knn, fps, radius_graph
 from torch_scatter import scatter, scatter_add
 from mmwave_model_integrator.torch_training.models.DeepDynamicEdgeConvGnn import DeepDynamicEdgeConvGnn
@@ -54,6 +55,12 @@ class DensifyingDeepDynamicEdgeConvGnn(torch.nn.Module):
         )
 
     def forward(self, x, batch=None, return_intermediate=False):
+        def get_time():
+            if torch.cuda.is_available() and x.is_cuda:
+                torch.cuda.synchronize()
+            return time.perf_counter()
+
+        t0 = get_time()
         if batch is None:
             batch = torch.zeros(x.size(0), dtype=torch.long, device=x.device)
 
@@ -98,6 +105,8 @@ class DensifyingDeepDynamicEdgeConvGnn(torch.nn.Module):
         x_sparse = x[idx_sparse]
         batch_sparse = batch[idx_sparse]
 
+        t1 = get_time()
+
         intermediates = {}
         if return_intermediate:
             intermediates["idx_sparse"] = idx_sparse
@@ -111,6 +120,8 @@ class DensifyingDeepDynamicEdgeConvGnn(torch.nn.Module):
             intermediates["out_sparse"] = out_sparse
         else:
             out_sparse, fused_sparse = self.backbone(x_sparse, batch_sparse, return_fused=True)
+
+        t2 = get_time()
 
         # 3. INTERPOLATE (IDW): Densify back to all dense points
         # knn assigns each element in y (dense) to k nearest points in x (sparse)
@@ -131,8 +142,7 @@ class DensifyingDeepDynamicEdgeConvGnn(torch.nn.Module):
         weighted_features = fused_sparse[sparse_idx] * normalized_weights.unsqueeze(-1)
         fused_dense = scatter_add(weighted_features, dense_idx, dim=0, dim_size=x.size(0))
         
-        if return_intermediate:
-            intermediates["assign_idx"] = assign_idx # Contains dense_idx (0) and sparse_idx (1)
+        t3 = get_time()
 
         # 4. FINAL CLASSIFICATION: Concatenate Local + Interpolated Global
         x_norm = self.input_norm(x)
@@ -140,6 +150,16 @@ class DensifyingDeepDynamicEdgeConvGnn(torch.nn.Module):
         
         out = self.refiner(final_input)
 
+        t4 = get_time()
+
         if return_intermediate:
+            intermediates["assign_idx"] = assign_idx # Contains dense_idx (0) and sparse_idx (1)
+            intermediates["timing_ms"] = {
+                "subsampling": (t1 - t0) * 1000.0,
+                "backbone": (t2 - t1) * 1000.0,
+                "interpolation": (t3 - t2) * 1000.0,
+                "refinement": (t4 - t3) * 1000.0,
+                "total": (t4 - t0) * 1000.0
+            }
             return out, intermediates
         return out

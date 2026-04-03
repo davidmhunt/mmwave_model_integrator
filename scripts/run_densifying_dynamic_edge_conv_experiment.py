@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import argparse
 import torch
+import csv
 
 from mmwave_model_integrator.config import Config
 import mmwave_model_integrator.torch_training.trainers as trainers
@@ -40,9 +41,9 @@ def parse_args():
                         help="Skip performance benchmarking phase.")
     return parser.parse_args()
 
-def benchmark_model(runner, dataset, input_encoder, device_name, num_warmup=10, num_runs=100):
-    """Measures average inference time on a specific device."""
-    print(f"Running benchmark on {device_name}...")
+def benchmark_model(runner, dataset, input_encoder, device_name, config_label, output_dir, num_warmup=10, num_runs=1000):
+    """Measures average inference time on a specific device and breaks it down by component."""
+    print(f"Running detailed benchmark on {device_name}...")
     
     # Move model to target device
     device = torch.device(device_name)
@@ -50,7 +51,14 @@ def benchmark_model(runner, dataset, input_encoder, device_name, num_warmup=10, 
     runner.device = device
     runner.model.eval()
 
-    times = []
+    total_times = []
+    component_times = {
+        "subsampling": [],
+        "backbone": [],
+        "interpolation": [],
+        "refinement": []
+    }
+
     with torch.no_grad():
         # Prepare test data (use a consistent frame)
         nodes = dataset.get_node_data(0)
@@ -59,7 +67,7 @@ def benchmark_model(runner, dataset, input_encoder, device_name, num_warmup=10, 
 
         # Warmup
         for _ in range(num_warmup):
-            _ = runner.model(x)
+            _ = runner.model(x, return_intermediate=True)
         
         if "cuda" in device_name:
             torch.cuda.synchronize()
@@ -67,23 +75,68 @@ def benchmark_model(runner, dataset, input_encoder, device_name, num_warmup=10, 
         # Measurement
         import time
         for idx in range(num_runs):
-            start = time.perf_counter()
-            nodes = dataset.get_node_data(idx)
+            # Select frame (cycling through dataset if needed)
+            data_idx = idx % dataset.num_frames
+            nodes = dataset.get_node_data(data_idx)
             nodes_encoded = input_encoder.encode(nodes)
             x = torch.tensor(nodes_encoded, dtype=torch.float32).to(device)
-            _ = runner.model(x)
+            
+            if "cuda" in device_name:
+                torch.cuda.synchronize()
+            
+            start = time.perf_counter()
+            _, intermediates = runner.model(x, return_intermediate=True)
             if "cuda" in device_name:
                 torch.cuda.synchronize()
             end = time.perf_counter()
-            times.append(end - start)
+            
+            total_times.append((end - start) * 1000.0) # ms
+            
+            timing = intermediates.get("timing_ms", {})
+            for key in component_times:
+                if key in timing:
+                    component_times[key].append(timing[key])
 
-    avg_time = np.mean(times)
-    std_time = np.std(times)
-    hz = 1.0 / avg_time
+    avg_total = np.mean(total_times)
+    std_total = np.std(total_times)
     
-    print(f"  Average: {avg_time*1000:.2f} ms (+/- {std_time*1000:.2f} ms)")
-    print(f"  Throughput: {hz:.2f} Hz")
-    return avg_time, hz
+    print(f"\n--- Timing Breakdown ({device_name}) ---")
+    print(f"{'Component':<20} | {'Mean (ms)':<10} | {'Std (ms)':<10} | {'Percentage':<10}")
+    print("-" * 58)
+    
+    csv_rows = []
+    for comp, times in component_times.items():
+        if times:
+            avg_comp = np.mean(times)
+            std_comp = np.std(times)
+            percentage = (avg_comp / avg_total) * 100.0
+            print(f"{comp.capitalize():<20} | {avg_comp:10.2f} | {std_comp:10.2f} | {percentage:9.1f}%")
+            csv_rows.append({
+                "Component": comp.capitalize(),
+                "Mean_ms": f"{avg_comp:.4f}",
+                "Std_ms": f"{std_comp:.4f}",
+                "Percentage": f"{percentage:.2f}%"
+            })
+    
+    print("-" * 58)
+    print(f"{'Total (Measured)':<20} | {avg_total:10.2f} | {std_total:10.2f} | 100.0%")
+    print(f"Throughput: {1000.0 / avg_total:.2f} Hz")
+
+    # CSV Export
+    csv_path = os.path.join(output_dir, f"timing_breakdown_{config_label}_{device_name.replace(':', '_')}.csv")
+    with open(csv_path, mode='w', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=["Component", "Mean_ms", "Std_ms", "Percentage"])
+        writer.writeheader()
+        writer.writerows(csv_rows)
+        writer.writerow({
+            "Component": "Total",
+            "Mean_ms": f"{avg_total:.4f}",
+            "Std_ms": f"{std_total:.4f}",
+            "Percentage": "100.00%"
+        })
+    
+    print(f"Detailed timing results saved to {csv_path}")
+    return avg_total, 1000.0 / avg_total
 
 def main():
     args = parse_args()
@@ -274,10 +327,10 @@ def main():
         
         # 1. GPU Benchmark
         if torch.cuda.is_available():
-            benchmark_model(runner, dataset, input_encoder, "cuda:0")
+            benchmark_model(runner, dataset, input_encoder, "cuda:0", args.config_label, args.output_dir)
         
         # 2. CPU Benchmark
-        benchmark_model(runner, dataset, input_encoder, "cpu")
+        benchmark_model(runner, dataset, input_encoder, "cpu", args.config_label, args.output_dir)
 
     print(f"\n--- Experiment Completed. Results saved to {args.output_dir} ---")
 
