@@ -41,9 +41,17 @@ def parse_args():
                         help="Skip performance benchmarking phase.")
     return parser.parse_args()
 
-def benchmark_model(runner, dataset, input_encoder, device_name, config_label, output_dir, num_warmup=10, num_runs=1000):
+def benchmark_model(runner, dataset, input_encoder, device_name, config_label, output_dir, num_threads=None, num_warmup=10, num_runs=1000):
     """Measures average inference time on a specific device and breaks it down by component."""
-    print(f"Running detailed benchmark on {device_name}...")
+    
+    # Save original thread count and set new one if requested
+    original_threads = torch.get_num_threads()
+    if num_threads is not None:
+        torch.set_num_threads(num_threads)
+    
+    current_threads = torch.get_num_threads()
+    mode_str = "Single-Core" if current_threads == 1 else "Multi-Core"
+    print(f"\nRunning detailed benchmark on {device_name} ({mode_str}, Threads: {current_threads})...")
     
     # Move model to target device
     device = torch.device(device_name)
@@ -58,6 +66,8 @@ def benchmark_model(runner, dataset, input_encoder, device_name, config_label, o
         "interpolation": [],
         "refinement": []
     }
+
+    # Ensure model is on the correct device
 
     with torch.no_grad():
         # Prepare test data (use a consistent frame)
@@ -100,7 +110,7 @@ def benchmark_model(runner, dataset, input_encoder, device_name, config_label, o
     avg_total = np.mean(total_times)
     std_total = np.std(total_times)
     
-    print(f"\n--- Timing Breakdown ({device_name}) ---")
+    print(f"\n--- Timing Breakdown ({device_name}, {current_threads} Threads) ---")
     print(f"{'Component':<20} | {'Mean (ms)':<10} | {'Std (ms)':<10} | {'Percentage':<10}")
     print("-" * 58)
     
@@ -123,7 +133,8 @@ def benchmark_model(runner, dataset, input_encoder, device_name, config_label, o
     print(f"Throughput: {1000.0 / avg_total:.2f} Hz")
 
     # CSV Export
-    csv_path = os.path.join(output_dir, f"timing_breakdown_{config_label}_{device_name.replace(':', '_')}.csv")
+    thread_suffix = f"_threads_{current_threads}"
+    csv_path = os.path.join(output_dir, f"timing_breakdown_{config_label}_{device_name.replace(':', '_')}{thread_suffix}.csv")
     with open(csv_path, mode='w', newline='') as f:
         writer = csv.DictWriter(f, fieldnames=["Component", "Mean_ms", "Std_ms", "Percentage"])
         writer.writeheader()
@@ -136,6 +147,10 @@ def benchmark_model(runner, dataset, input_encoder, device_name, config_label, o
         })
     
     print(f"Detailed timing results saved to {csv_path}")
+
+    # Restore original thread count
+    torch.set_num_threads(original_threads)
+    
     return avg_total, 1000.0 / avg_total
 
 def main():
@@ -325,12 +340,15 @@ def main():
     if not args.skip_benchmark:
         print("\n--- Phase 3: Performance Benchmarking ---")
         
-        # 1. GPU Benchmark
+        # 1. GPU Benchmark (Multi-core dispatch)
         if torch.cuda.is_available():
             benchmark_model(runner, dataset, input_encoder, "cuda:0", args.config_label, args.output_dir)
         
-        # 2. CPU Benchmark
+        # 2. CPU Multi-core Benchmark (System Default)
         benchmark_model(runner, dataset, input_encoder, "cpu", args.config_label, args.output_dir)
+
+        # 3. CPU Single-core Benchmark
+        benchmark_model(runner, dataset, input_encoder, "cpu", args.config_label, args.output_dir, num_threads=1)
 
     print(f"\n--- Experiment Completed. Results saved to {args.output_dir} ---")
 
