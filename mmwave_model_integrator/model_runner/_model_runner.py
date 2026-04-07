@@ -32,6 +32,7 @@ class _ModelRunner:
         if self.device != 'cpu':
             self.model.load_state_dict(
                 torch.load(self.state_dict_path,
+                           map_location=self.device,
                            weights_only=True))
         else:
             self.model.load_state_dict(
