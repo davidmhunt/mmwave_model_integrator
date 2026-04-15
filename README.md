@@ -114,6 +114,36 @@ pip3 install torch torchvision torchaudio
 exit
 ```
 
+#### Installing torch-cluster and torch-scatter
+Currently, torch-cluster is required to run everything. At the current moment though, this cannot be installed using poetry. To overcome this, run the following commands to correctly install everything. Here, replace ${CUDA} with cpu, cu118, cu121, or cu124 depending on cuda version. While this command should work for most systems, see the following page for more specific instructions: [torch-cluster github](https://github.com/rusty1s/pytorch_cluster) [torch-scatter github](https://github.com/rusty1s/pytorch_scatter)
+```
+cd mmwave_model_integrator
+eval $(poetry env activate)
+pip install torch-cluster -f https://data.pyg.org/whl/torch-2.4.0+${CUDA}.html
+pip install torch-scatter
+```
+
+If this process doesn't work, you can manually create a wheel using the following steps (ensure that torch is already installed):
+1. Clone the pytorch_cluster repo into a desired location (ex: documents)
+```
+git clone https://github.com/rusty1s/pytorch_cluster.git
+cd pytorch_cluster
+```
+
+2. Build the wheel (this will take ~30 minutes)
+```
+python3 setup.py bdist_wheel
+```
+
+3. Install the wheel into the poetry environment
+```
+cd CPSL_ROS2_PC_Processing
+poetry shell
+cd pytorch_cluster/dist #adjust path to where you cloned it
+pip3 install dist/torch_cluster-*.whl #adjust depending on the file that was generated
+```
+
+
 #### Updating mmwave_model_integrator
 If the pyproject.toml file is updated, the poetry installation must also be updated. Use the following commands to update the version of poetry
 ```
