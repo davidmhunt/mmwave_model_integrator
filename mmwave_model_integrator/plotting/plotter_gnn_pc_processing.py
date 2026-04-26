@@ -722,3 +722,101 @@ class PlotterGnnPCProcessing(_Plotter):
             plt.savefig(save_path, bbox_inches='tight')
         if show:
             plt.show()
+
+    def plot_sage_layer_analysis(
+            self,
+            nodes: np.ndarray,
+            model_outputs: dict,
+            layer_predictions: list,
+            gt_labels: np.ndarray = None,
+            save_path: str = None,
+            show: bool = False
+    ):
+        """Figure for SageGNN: Sequential layer features and final Dense prediction heatmap."""
+        layer_indices = sorted(list(set([int(k.split('_')[1]) for k in model_outputs.keys() if k.startswith('layer_') and k.endswith('_features')])))
+        num_layers = len(layer_indices)
+        
+        # We'll do 2 rows: Top for the actual activations + k-NN graph, Bottom for something context-related,
+        # but since SAGE doesn't have intermediate predictions, the bottom row can be the final prediction & GT.
+        
+        fig, axs = plt.subplots(2, max(num_layers, 3), figsize=(6 * max(num_layers, 3), 12))
+        fig.subplots_adjust(wspace=0.3, hspace=0.3)
+        
+        def transform_pts(points):
+            p = np.hstack((points[:,0:2], np.zeros(shape=(points.shape[0],1))))
+            r = Orientation.from_euler(yaw=90, degrees=True)
+            t = Transformation(rotation=r._orientation)
+            p = t.apply_transformation(p)
+            return p[:, 0:2]
+
+        pts_transformed = transform_pts(nodes)
+
+        import torch
+        
+        # Top Row: Features and edges
+        for idx, layer_idx in enumerate(layer_indices):
+            ax_top = axs[0, idx]
+            feat_key = f"layer_{layer_idx}_features"
+            
+            features = model_outputs.get(feat_key)
+            if isinstance(features, torch.Tensor):
+                features = features.detach().cpu().numpy()
+            
+            edge_index = model_outputs.get("edge_index")
+            if edge_index is not None:
+                if isinstance(edge_index, torch.Tensor):
+                    edge_index = edge_index.detach().cpu().numpy()
+                src_pts = pts_transformed[edge_index[0]]
+                dst_pts = pts_transformed[edge_index[1]]
+                segments = np.stack([src_pts, dst_pts], axis=1)
+                
+                lc = LineCollection(segments, colors='blue', alpha=0.15, linewidths=0.5, zorder=1)
+                ax_top.add_collection(lc)
+
+            feats_mag = np.linalg.norm(features, axis=1) if features is not None else np.zeros(pts_transformed.shape[0])
+            sc = ax_top.scatter(pts_transformed[:, 0], pts_transformed[:, 1], c=feats_mag, cmap='viridis', s=self.marker_size * 1.5, alpha=0.9, zorder=2)
+            ax_top.set_title(f"Layer {layer_idx}: Features & k-NN Graph")
+            plt.colorbar(sc, ax=ax_top, label="Feature Magnitude")
+
+        # Fill remaining top row if any
+        for idx in range(num_layers, max(num_layers, 3)):
+            axs[0, idx].axis('off')
+
+        # Bottom Row: Original Input, Ground Truth, Final Prediction
+        ax_input = axs[1, 0]
+        ax_input.scatter(pts_transformed[:, 0], pts_transformed[:, 1], s=self.marker_size, color="blue", alpha=0.5)
+        ax_input.set_title("Original Dense Input")
+
+        ax_gt = axs[1, 1]
+        if gt_labels is not None:
+            valid_mask = (gt_labels == 1.0)
+            ax_gt.scatter(pts_transformed[~valid_mask, 0], pts_transformed[~valid_mask, 1], s=self.marker_size, color="gray", alpha=0.3)
+            ax_gt.scatter(pts_transformed[valid_mask, 0], pts_transformed[valid_mask, 1], s=self.marker_size, color="red", alpha=0.8, label="GT Valid")
+            ax_gt.legend()
+        ax_gt.set_title("Ground Truth Labels")
+
+        ax_pred = axs[1, 2]
+        pred = layer_predictions[-1] if layer_predictions else np.zeros(pts_transformed.shape[0])
+        if isinstance(pred, torch.Tensor):
+            pred = pred.detach().cpu().numpy()
+        sc_p = ax_pred.scatter(pts_transformed[:, 0], pts_transformed[:, 1], c=pred.flatten(), cmap='RdYlGn', s=self.marker_size, alpha=0.8)
+        ax_pred.set_title(f"Final SageGNN Prediction")
+        plt.colorbar(sc_p, ax=ax_pred, label="Score")
+        
+        # turn off extra bottom row axes
+        for idx in range(3, max(num_layers, 3)):
+            axs[1, idx].axis('off')
+
+        for ax in axs.flatten():
+            if not ax.axison:
+                continue
+            ax.set_xlim(left=-1 * self.plot_x_max, right=self.plot_x_max)
+            ax.set_ylim(bottom=-1 * self.plot_y_max, top=self.plot_y_max)
+            ax.set_xlabel("Y (m)", fontsize=self.font_size_axis_labels)
+            ax.set_ylabel("X (m)", fontsize=self.font_size_axis_labels)
+
+        plt.tight_layout()
+        if save_path:
+            plt.savefig(save_path, bbox_inches='tight')
+        if show:
+            plt.show()

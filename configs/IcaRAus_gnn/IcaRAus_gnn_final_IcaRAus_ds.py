@@ -1,35 +1,43 @@
 import torch
 
+_base_ = ["IcaRAus_gnn_base.py"]
+
 model = dict(
-    type='SequentialDynamicEdgeConv',
-    in_channels = 4,
-    hidden_channels=32,
+    type='DensifyingDeepDynamicEdgeConvGnn',
+    in_channels=5,
     out_channels=1,
-    dropout=0.5,
-    k=10
+    hidden_channels=32,
+    num_layers=4,
+    k=20,
+    p=2.0,
+    num_sparse_points_fps=100,
+    use_density_filtering=False,
+    density_eps=0.1,
+    density_min_samples=5,
+    dropout=0.5
 )
-config_label = "IcaRAus_SequentialDynamicEdge_100fh"
-dataset_label = "IcaRAus_ugv_gnn_50fh_wilk_cpsl_north_1st_occluded_no_rt_gt_no_rt_pts_no_gt_filter_0_25_eps_10_min_20_sub"
+
+dataset_label = "IcaRAus_ugv_IcaRAus_ds_wilk_cpsl_north_1st"
 generated_dataset = dict(
     input_encoding_folder="nodes",
     ground_truth_encoding_folder="labels",
     generated_dataset_path="/home/david/Downloads/IcaRAus_datasets/{}_train".format(dataset_label)
-    # generated_dataset_path="/data/IcaRAus/generated_datasets/{}_train".format(dataset_label)
 )
 
+config_label = "IcaRAus_gnn_IcaRAus_ds"
+[]
 trainer = dict(
-    type='GNNTorchTrainer',
     model = model,
     optimizer = dict(
         type='Adam',
-        lr=0.007, #originally 0.001
-        weight_decay=1.04e-6
+        lr=0.001,
+        weight_decay=1e-5
     ),
-
     loss_fn = dict(
         type='BCEWithLogitsLoss',
-        pos_weight=torch.tensor([0.20])
+        pos_weight=torch.tensor([1.0])
     ),
+    save_name = "{}".format(config_label),
     dataset = dict(
         type='_GnnNodeDataset',
         edge_radius=10.0,
@@ -42,25 +50,13 @@ trainer = dict(
         node_value_preturbation_sigma=0.05,
         enable_x_y_position_preturbations=True,
         enable_cylindrical_encoding=False,
-        enable_downsampling=True,
-        downsample_keep_ratio=0.3,
-        downsample_min_points=300
-    ),
-    data_loader = dict(
-        type='TGDataLoader',
-        batch_size=40,
-        shuffle=True,
-        num_workers=18
-    ),
+        enable_downsampling=False,
+        downsample_keep_ratio=0.1,
+        downsample_min_points=200
+    ),   
     dataset_path = generated_dataset["generated_dataset_path"],
     node_directory=generated_dataset["input_encoding_folder"],
     label_directory=generated_dataset["ground_truth_encoding_folder"],
-    val_split = 0.25,
-    target_metric = "val_f1",
-    working_dir = "working_dir/IcaRAus_gnn",
-    save_name = "{}".format(config_label),
-    epochs = 20,
-    pretrained_state_dict_path=None,
-    cuda_device="cuda:0",
-    multiple_GPUs=False
+    epochs=100,
+    cuda_device="cuda:1",
 )

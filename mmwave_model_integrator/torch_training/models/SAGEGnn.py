@@ -9,10 +9,25 @@ class SageGNNClassifier(torch.nn.Module):
         self.conv2 = SAGEConv(hidden_channels, hidden_channels)
         self.conv3 = SAGEConv(hidden_channels, out_channels)
 
-    def forward(self, x, edge_index):
+    def forward(self, x, edge_index, return_intermediate=False):
+        intermediates = {}
+        if return_intermediate:
+            intermediates["edge_index"] = edge_index
+            
         x = self.conv1(x, edge_index)
         x = F.relu(x)
+        if return_intermediate:
+            intermediates["layer_0_features"] = x
+            
         x = self.conv2(x, edge_index)
         x = F.relu(x)
+        if return_intermediate:
+            intermediates["layer_1_features"] = x
+            
         x = self.conv3(x, edge_index)
-        return torch.sigmoid(x)  # Output probability between 0 and 1
+        out = torch.sigmoid(x)  # Output probability between 0 and 1
+        
+        if return_intermediate:
+            intermediates["layer_2_features"] = x
+            return out, intermediates
+        return out
