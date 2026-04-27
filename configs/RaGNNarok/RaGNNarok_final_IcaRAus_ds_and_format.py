@@ -1,6 +1,6 @@
 _base_ = ['../sage_gnn_base.py']
 
-config_label = "RaGNNarok_final_RaGNNarok_ds_and_format" 
+config_label = "RaGNNarok_final_IcaRAus_ds_and_format" 
 
 model = dict(
     type='SageGNNClassifier',

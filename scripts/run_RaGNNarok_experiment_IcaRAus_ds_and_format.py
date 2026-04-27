@@ -20,9 +20,9 @@ from mmwave_model_integrator.torch_training.models.SAGEGnn import SageGNNClassif
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Run SageGNNClassifier RaGNNarok Experiment")
-    parser.add_argument("--config_label", type=str, default="RaGNNarok_final_RaGNNarok_ds_and_format",
+    parser.add_argument("--config_label", type=str, default="RaGNNarok_final_IcaRAus_ds_and_format",
                         help="The config file name (without .py) to use.")
-    parser.add_argument("--checkpoint_path", type=str, default="/home/david/Documents/odometry/submodules/mmwave_model_integrator/scripts/working_dir/RaGNNarok/RaGNNarok_final_RaGNNarok_ds_and_format.pth",
+    parser.add_argument("--checkpoint_path", type=str, default="/home/david/Documents/odometry/submodules/mmwave_model_integrator/scripts/working_dir/RaGNNarok/RaGNNarok_final_IcaRAus_ds_and_format.pth",
                         help="Path to load/save the model checkpoint.")
     parser.add_argument("--test_only", action="store_true",
                         help="Skip training and only run evaluation/plotting.")
