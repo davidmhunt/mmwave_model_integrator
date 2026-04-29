@@ -114,18 +114,13 @@ def main():
             print("-" * 40)
 
             # Resolve paths for this fold
-            # Default checkpoint path logic used in original scripts
-            # For IcaRAus: submodules/mmwave_model_integrator/scripts/working_dir/<label>/<label>.pth
-            # For RaGNNarok: submodules/mmwave_model_integrator/scripts/working_dir/RaGNNarok/<label>.pth
-            # To be safe, we'll let the script handle it if possible, but we need to provide a default.
-            
-            # Re-creating the logic from the original scripts for the checkpoint path
             scripts_dir = os.path.dirname(os.path.abspath(__file__))
             if "IcaRAus_gnn" in exp_name:
-                checkpoint_path = os.path.join(scripts_dir, "working_dir", config_label, f"{config_label}.pth")
+                checkpoint_dir = os.path.join(scripts_dir, "working_dir", "IcaRAus_gnn")
             else:
-                checkpoint_path = os.path.join(scripts_dir, "working_dir", "RaGNNarok", f"{config_label}.pth")
+                checkpoint_dir = os.path.join(scripts_dir, "working_dir", "RaGNNarok")
 
+            checkpoint_path = os.path.join(checkpoint_dir, f"{config_label}.pth")
             output_dir = os.path.join("experiment_results", config_label)
 
             success = run_cycle(
