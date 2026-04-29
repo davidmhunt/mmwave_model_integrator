@@ -153,20 +153,39 @@ def benchmark_model(runner, dataset, input_encoder, device_name, config_label, o
     
     return avg_total, 1000.0 / avg_total
 
-def main():
-    args = parse_args()
-    os.makedirs(args.output_dir, exist_ok=True)
+def run_experiment_cycle(
+    config_label,
+    dataset_path,
+    checkpoint_path,
+    output_dir,
+    base_config_label=None,
+    test_only=False,
+    num_instances=5,
+    analysis_idx=1000,
+    print_stats=False,
+    skip_benchmark=False
+):
+    """Runs a single experiment cycle: Training (optional) -> Evaluation -> Plotting -> Benchmarking."""
+    os.makedirs(output_dir, exist_ok=True)
 
-    print(f"--- Setting up Densifying Deep DynamicEdgeConv Experiment: {args.config_label} ---")
-    config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), f"../configs/IcaRAus_gnn/{args.config_label}.py"))
+    # Use base_config_label if provided, otherwise default to config_label
+    actual_config_to_load = base_config_label if base_config_label is not None else config_label
+
+    print(f"--- Setting up Densifying Deep DynamicEdgeConv Experiment: {config_label} (Base: {actual_config_to_load}) ---")
+    config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), f"../configs/IcaRAus_gnn/{actual_config_to_load}.py"))
     
     if not os.path.exists(config_path):
         print(f"Error: Config file {config_path} not found.")
-        sys.exit(1)
+        return False
         
     config = Config(config_path)
 
-    if not args.test_only:
+    # Override trainer parameters to match current fold
+    if hasattr(config, 'trainer'):
+        config.trainer['dataset_path'] = dataset_path
+        config.trainer['save_name'] = config_label
+
+    if not test_only:
         print("\n--- Phase 1: Training ---")
         trainer_config = config.trainer
         trainer_class = getattr(trainers, trainer_config.pop('type'))
@@ -179,7 +198,7 @@ def main():
     print("\n--- Phase 2: Evaluation & Plotting ---")
     
     dataset = GnnNodeDS(
-        dataset_path=config.generated_dataset["generated_dataset_path"],
+        dataset_path=dataset_path, # Use passed dataset_path
         node_folder="nodes",
         label_folder="labels",
     )
@@ -188,6 +207,7 @@ def main():
     ground_truth_encoder = _GTNodeEncoder()
     plotter = PlotterGnnPCProcessing()
 
+    # Re-initialize config to avoid side-effects from training phase if any
     config = Config(config_path)
     model_cfg = config.model
     model_type = model_cfg.pop('type')
@@ -199,29 +219,29 @@ def main():
     downsample_min_points = dataset_cfg.get("downsample_min_points", 0)
     
     # Check for checkpoint existence in test-only mode
-    if args.test_only and not os.path.exists(args.checkpoint_path):
-        print(f"\n[WARNING] Checkpoint not found at {args.checkpoint_path}")
+    if test_only and not os.path.exists(checkpoint_path):
+        print(f"\n[WARNING] Checkpoint not found at {checkpoint_path}")
         print("Proceeding with Randomly Initialized weights for demonstration purposes.")
-        os.makedirs(os.path.dirname(args.checkpoint_path), exist_ok=True)
-        torch.save(model.state_dict(), args.checkpoint_path)
-        print(f"Temporary dummy checkpoint saved to {args.checkpoint_path}")
+        os.makedirs(os.path.dirname(checkpoint_path), exist_ok=True)
+        torch.save(model.state_dict(), checkpoint_path)
+        print(f"Temporary dummy checkpoint saved to {checkpoint_path}")
 
     runner = GNNRunner(
         model=model,
-        state_dict_path=args.checkpoint_path,
+        state_dict_path=checkpoint_path,
         cuda_device="cuda:0" if torch.cuda.is_available() else "cpu",
         edge_radius=10.0,
         enable_downsampling=enable_downsampling,
         downsample_keep_ratio=downsample_keep_ratio,
         downsample_min_points=downsample_min_points,
         use_sigmoid=True,
-        print_stats=args.print_stats
+        print_stats=print_stats
     )
 
     # 1. Multi-instance Compilation Plot
     print(f"Generating Multi-Instance Compilation...")
     np.random.seed(42)
-    indices = np.random.choice(dataset.num_frames, size=args.num_instances, replace=False)
+    indices = np.random.choice(dataset.num_frames, size=num_instances, replace=False)
     
     instances_nodes = []
     instances_labels = []
@@ -229,7 +249,7 @@ def main():
         instances_nodes.append(dataset.get_node_data(idx))
         instances_labels.append(dataset.get_label_data(idx))
 
-    compilation_save_path = os.path.join(args.output_dir, f"{args.config_label}_compilation_{args.num_instances}x3.png")
+    compilation_save_path = os.path.join(output_dir, f"{config_label}_compilation_{num_instances}x3.png")
     plotter.plot_multi_instance_compilation(
         instances_nodes=instances_nodes,
         instances_labels=instances_labels,
@@ -242,9 +262,9 @@ def main():
     print(f"Compilation saved to {compilation_save_path}")
 
     # 2. Detailed Layer-wise Analysis
-    print(f"Generating Detailed Densifying Layer-wise Analysis for index {args.analysis_idx}...")
-    nodes = dataset.get_node_data(args.analysis_idx)
-    labels = dataset.get_label_data(args.analysis_idx)
+    print(f"Generating Detailed Densifying Layer-wise Analysis for index {analysis_idx}...")
+    nodes = dataset.get_node_data(analysis_idx)
+    labels = dataset.get_label_data(analysis_idx)
     
     if runner.enable_downsampling:
         num_points = nodes.shape[0]
@@ -307,7 +327,7 @@ def main():
     assign_idx_np = assign_idx.cpu().numpy()
 
     # --- FIGURE 1: Diagnostic ---
-    diag_save_path = os.path.join(args.output_dir, f"{args.config_label}_diagnostic_idx{args.analysis_idx}.png")
+    diag_save_path = os.path.join(output_dir, f"{config_label}_diagnostic_idx{analysis_idx}.png")
     
     # Extract backbone output for coloring stars
     out_sparse = intermediates.get("out_sparse") # Might be missing if old model
@@ -325,7 +345,7 @@ def main():
     print(f"Diagnostic figure saved to {diag_save_path}")
 
     # --- FIGURE 2: Layer Analysis ---
-    analysis_save_path = os.path.join(args.output_dir, f"{args.config_label}_layer_analysis_idx{args.analysis_idx}.png")
+    analysis_save_path = os.path.join(output_dir, f"{config_label}_layer_analysis_idx{analysis_idx}.png")
     plotter.plot_densifying_layer_analysis(
         nodes_dense=nodes,
         nodes_sparse=nodes_sparse,
@@ -337,20 +357,36 @@ def main():
     print(f"Layer analysis figure saved to {analysis_save_path}")
 
     # --- PHASE 3: Benchmarking ---
-    if not args.skip_benchmark:
+    if not skip_benchmark:
         print("\n--- Phase 3: Performance Benchmarking ---")
         
         # 1. GPU Benchmark (Multi-core dispatch)
         if torch.cuda.is_available():
-            benchmark_model(runner, dataset, input_encoder, "cuda:0", args.config_label, args.output_dir)
+            benchmark_model(runner, dataset, input_encoder, "cuda:0", config_label, output_dir)
         
         # 2. CPU Multi-core Benchmark (System Default)
-        benchmark_model(runner, dataset, input_encoder, "cpu", args.config_label, args.output_dir)
+        benchmark_model(runner, dataset, input_encoder, "cpu", config_label, output_dir)
 
         # 3. CPU Single-core Benchmark
-        benchmark_model(runner, dataset, input_encoder, "cpu", args.config_label, args.output_dir, num_threads=1)
+        benchmark_model(runner, dataset, input_encoder, "cpu", config_label, output_dir, num_threads=1)
 
-    print(f"\n--- Experiment Completed. Results saved to {args.output_dir} ---")
+    print(f"\n--- Experiment Completed. Results saved to {output_dir} ---")
+    return True
+
+def main():
+    args = parse_args()
+    
+    run_experiment_cycle(
+        config_label=args.config_label,
+        dataset_path=args.dataset_path,
+        checkpoint_path=args.checkpoint_path,
+        output_dir=args.output_dir,
+        test_only=args.test_only,
+        num_instances=args.num_instances,
+        analysis_idx=args.analysis_idx,
+        print_stats=args.print_stats,
+        skip_benchmark=args.skip_benchmark
+    )
 
 if __name__ == "__main__":
     main()

@@ -222,3 +222,83 @@ The optimization script also integrates with [Weights & Biases (WandB)](https://
     *   **Parallel Coordinates Plot**: Visualize high-dimensional hyperparameter relationships.
     *   **Parameter Importance**: See which parameters affect the loss the most.
     *   **Optimization History**: Track the improvement of the objective value over trials.
+
+### GNN Experiment Pipeline
+
+The `mmwave_model_integrator` includes a robust pipeline for running multi-fold GNN experiments across different model architectures and datasets.
+
+### 1. Unified Experiment Runner
+
+The primary entry point for all GNN experiments is the `run_multiple_gnn_experiments.py` script. It allows you to run complex evaluation suites across multiple dataset folds using a single command.
+
+#### Setup Environment
+Before running any scripts, ensure you are in the module root and the poetry environment is activated:
+```bash
+cd mmwave_model_integrator
+eval $(poetry env activate)
+```
+
+#### Listing Available Experiments
+To see all supported experiment types:
+```bash
+python scripts/run_multiple_gnn_experiments.py
+```
+
+#### Running a Specific Experiment Suite
+To run a specific suite (e.g., IcaRAus GNN on IcaRAus dataset):
+```bash
+python scripts/run_multiple_gnn_experiments.py \
+  --experiments IcaRAus_gnn_IcaRAus_ds \
+  --test_only
+```
+
+#### Running Multiple Suites
+You can chain multiple experiments together:
+```bash
+python scripts/run_multiple_gnn_experiments.py \
+  --experiments IcaRAus_gnn_IcaRAus_ds RaGNNarok_gnn_RaGNNarok_ds \
+  --test_only
+```
+
+#### Running All Experiments
+To run the full evaluation suite for all models and datasets:
+```bash
+python scripts/run_multiple_gnn_experiments.py \
+  --experiments IcaRAus_gnn_IcaRAus_ds IcaRAus_gnn_RaGNNarok_ds RaGNNarok_gnn_IcaRAus_ds RaGNNarok_gnn_RaGNNarok_ds
+```
+
+### 2. Supported Experiment Types
+
+| Experiment Name | Model Architecture | Dataset | Description |
+| :--- | :--- | :--- | :--- |
+| `IcaRAus_gnn_IcaRAus_ds` | Densifying Deep DynamicEdgeConv | IcaRAus | High-fidelity densification GNN on native IcaRAus data. |
+| `IcaRAus_gnn_RaGNNarok_ds` | Densifying Deep DynamicEdgeConv | RaGNNarok | Testing IcaRAus architecture on RaGNNarok data (cross-dataset). |
+| `RaGNNarok_gnn_IcaRAus_ds` | SageGNNClassifier | IcaRAus | Lightweight SAGE-based GNN on IcaRAus data. |
+| `RaGNNarok_gnn_RaGNNarok_ds` | SageGNNClassifier | RaGNNarok | Standard RaGNNarok GNN on native RaGNNarok data. |
+
+### 3. Configuration & Paths
+
+To customize or add experiments, you should be familiar with the following directories:
+
+- **Experiment Mappings**: `scripts/experiment_configs/`
+  - Contains `.yaml` files that map experiment labels (e.g., `fold_1`) to absolute dataset paths.
+- **Base Configurations**: 
+  - IcaRAus: `configs/IcaRAus_gnn/`
+  - RaGNNarok: `configs/RaGNNarok/`
+  - These `.py` files define the model hyperparameters and trainer settings used as templates for multi-fold runs.
+- **Experiment Results**: `scripts/experiment_results/`
+  - Resulting plots, diagnostics, and benchmarking CSVs are saved here, isolated by experiment label.
+- **Model Checkpoints**: `scripts/working_dir/`
+  - Trained `.pth` files are stored and loaded from this directory.
+
+### 4. Dataset Format Overview
+
+The models consume data via the `GnnNodeDS` class. A dataset directory typically contains:
+
+- **`nodes/`**: `.npy` files containing the input point cloud features.
+  - Shape: `(N, 5)` -> `[x, y, z, doppler, intensity]`.
+- **`labels/`**: `.npy` files containing the ground truth for each node.
+  - Shape: `(N,)` -> Binary classification (e.g., 0 for noise, 1 for valid point).
+
+The **Densifying GNN** (IcaRAus) also utilizes a hierarchical structure where it learns to identify "super-nodes" (sparse skeleton) and then interpolates context back to the dense points for final refinement.
+The **SageGNN** (RaGNNarok) uses a more standard Graph SAGE architecture with a fixed-radius graph construction for neighborhood aggregation.
