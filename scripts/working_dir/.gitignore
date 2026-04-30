@@ -18,6 +18,8 @@ RaGNNarok/*
 !IcaRAus_gnn/IcaRAus_gnn_RaGNNarok_ds.png
 !IcaRAus_gnn/IcaRAus_gnn_RaGNNarok_ds_and_format.pth
 !IcaRAus_gnn/IcaRAus_gnn_RaGNNarok_ds_and_format.png
+!IcaRAus_gnn/IcaRAus_gnn_IcaRAus_ds_f*
+!IcaRAus_gnn/IcaRAus_gnn_RaGNNarok_ds_f*
 
 !RaGNNarok/RaGNNarok_final_RaGNNarok_ds.pth
 !RaGNNarok/RaGNNarok_final_RaGNNarok_ds.png
@@ -25,3 +27,6 @@ RaGNNarok/*
 !RaGNNarok/RaGNNarok_final_IcaRAus_ds.png
 !RaGNNarok/RaGNNarok_final_IcaRAus_ds_and_format.pth
 !RaGNNarok/RaGNNarok_final_IcaRAus_ds_and_format.png
+!RaGNNarok/RaGNNarok_gnn_IcaRAus_ds_f*
+!RaGNNarok/RaGNNarok_gnn_RaGNNarok_ds_f*
+

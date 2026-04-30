@@ -1,4 +1,7 @@
-IcaRAus_gnn_final_IcaRAus_ds_f1: "/home/david/Downloads/IcaRAus_datasets/IcaRAus_ugv_IcaRAus_ds_f1_train"
-IcaRAus_gnn_final_IcaRAus_ds_f2: "/home/david/Downloads/IcaRAus_datasets/IcaRAus_ugv_IcaRAus_ds_f2_train"
-IcaRAus_gnn_final_IcaRAus_ds_f3: "/home/david/Downloads/IcaRAus_datasets/IcaRAus_ugv_IcaRAus_ds_f3_train"
-IcaRAus_gnn_final_IcaRAus_ds_f4: "/home/david/Downloads/IcaRAus_datasets/IcaRAus_ugv_IcaRAus_ds_f4_train"
+IcaRAus_gnn_IcaRAus_ds_f1: "/home/david/Downloads/IcaRAus_datasets/IcaRAus_ds_f1_train"
+IcaRAus_gnn_IcaRAus_ds_f2: "/home/david/Downloads/IcaRAus_datasets/IcaRAus_ds_f2_train"
+IcaRAus_gnn_IcaRAus_ds_f3: "/home/david/Downloads/IcaRAus_datasets/IcaRAus_ds_f3_train"
+IcaRAus_gnn_IcaRAus_ds_f4: "/home/david/Downloads/IcaRAus_datasets/IcaRAus_ds_f4_train"
+IcaRAus_gnn_IcaRAus_ds_f5: "/home/david/Downloads/IcaRAus_datasets/IcaRAus_ds_f5_train"
+IcaRAus_gnn_IcaRAus_ds_f6: "/home/david/Downloads/IcaRAus_datasets/IcaRAus_ds_f6_train"
+

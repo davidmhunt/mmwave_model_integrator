@@ -1,3 +1,3 @@
-IcaRAus_gnn_RaGNNarok_ds_f1: "/home/david/Downloads/ragnnarok_datasets/RaGNNarok_ugv_RaGNNarok_ds_f1_train"
-IcaRAus_gnn_RaGNNarok_ds_f2: "/home/david/Downloads/ragnnarok_datasets/RaGNNarok_ugv_RaGNNarok_ds_f2_train"
-IcaRAus_gnn_RaGNNarok_ds_f3: "/home/david/Downloads/ragnnarok_datasets/RaGNNarok_ugv_RaGNNarok_ds_f3_train"
+IcaRAus_gnn_RaGNNarok_ds_f1: "/home/david/Downloads/ragnnarok_datasets/RaGNNarok_ds_f1_train"
+IcaRAus_gnn_RaGNNarok_ds_f2: "/home/david/Downloads/ragnnarok_datasets/RaGNNarok_ds_f2_train"
+IcaRAus_gnn_RaGNNarok_ds_f3: "/home/david/Downloads/ragnnarok_datasets/RaGNNarok_ds_f3_train"
