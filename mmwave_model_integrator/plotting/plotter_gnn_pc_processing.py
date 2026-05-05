@@ -20,7 +20,12 @@ class PlotterGnnPCProcessing(_Plotter):
 
         self.plot_x_max = 4
         self.plot_y_max = 6
-        self.marker_size = 30
+        self.marker_size = 40
+
+    def _apply_styling(self, ax: plt.Axes):
+        """Apply consistent styling to an axis."""
+        ax.grid(True, color='black', alpha=0.1, linestyle='--', zorder=0)
+        ax.tick_params(labelsize=self.font_size_ticks)
 
     ####################################################################
     #Plotting point clouds
@@ -76,7 +81,7 @@ class PlotterGnnPCProcessing(_Plotter):
         ax.set_xlabel("Y (m)", fontsize=self.font_size_axis_labels)
         ax.set_ylabel("X (m)", fontsize=self.font_size_axis_labels)
         ax.set_title(title, fontsize=self.font_size_title)
-        ax.tick_params(labelsize=self.font_size_ticks)
+        self._apply_styling(ax)
         ax.legend()
         
         if show:
@@ -128,7 +133,7 @@ class PlotterGnnPCProcessing(_Plotter):
         ax.set_xlabel("Y (m)", fontsize=self.font_size_axis_labels)
         ax.set_ylabel("X (m)", fontsize=self.font_size_axis_labels)
         ax.set_title(title, fontsize=self.font_size_title)
-        ax.tick_params(labelsize=self.font_size_ticks)
+        self._apply_styling(ax)
         ax.legend()
         
         if show:
@@ -390,11 +395,12 @@ class PlotterGnnPCProcessing(_Plotter):
             axs[1, 2].set_title("6. No Attention Weights")
 
         for ax in axs.flatten():
+            self._apply_styling(ax)
             ax.set_xlim(left=-1 * self.plot_x_max, right=self.plot_x_max)
             ax.set_ylim(bottom=-1 * self.plot_y_max, top=self.plot_y_max)
             ax.set_xlabel("Y (m)", fontsize=self.font_size_axis_labels)
             ax.set_ylabel("X (m)", fontsize=self.font_size_axis_labels)
-            ax.tick_params(labelsize=self.font_size_ticks)
+            self._apply_styling(ax)
 
         plt.tight_layout()
         if save_path:
@@ -446,6 +452,7 @@ class PlotterGnnPCProcessing(_Plotter):
         plt.colorbar(sc, ax=axs[2], label="Score")
 
         for ax in axs:
+            self._apply_styling(ax)
             ax.set_xlim(left=-1 * self.plot_x_max, right=self.plot_x_max)
             ax.set_ylim(bottom=-1 * self.plot_y_max, top=self.plot_y_max)
             ax.set_xlabel("Y (m)", fontsize=self.font_size_axis_labels)
@@ -536,6 +543,7 @@ class PlotterGnnPCProcessing(_Plotter):
                 plt.colorbar(sc_p, ax=ax_bot, label="Score")
 
         for ax in axs.flatten():
+            self._apply_styling(ax)
             ax.set_xlim(left=-1 * self.plot_x_max, right=self.plot_x_max)
             ax.set_ylim(bottom=-1 * self.plot_y_max, top=self.plot_y_max)
             ax.set_xlabel("Y (m)", fontsize=self.font_size_axis_labels)
@@ -577,6 +585,10 @@ class PlotterGnnPCProcessing(_Plotter):
             predictions = predictions.detach().cpu().numpy()
         
         # --- TOP ROW ---
+        # Define brighter colormap
+        bright_cmap = 'RdYlGn'
+
+        # --- TOP ROW ---
         # [0, 0] 1. Original Dense Input
         axs[0, 0].scatter(pts_dense_tx[:,0], pts_dense_tx[:,1], s=self.marker_size, color="blue", alpha=0.5)
         axs[0, 0].set_title("1. Original Dense Input", fontsize=self.font_size_title)
@@ -589,49 +601,46 @@ class PlotterGnnPCProcessing(_Plotter):
             axs[0, 1].set_title("2. Ground Truth", fontsize=self.font_size_title)
             axs[0, 1].legend()
 
-        # [0, 2] 3. Final Model Decision (Binarized)
-        binary_pred = (predictions.flatten() > 0.5)
-        axs[0, 2].scatter(pts_dense_tx[~binary_pred, 0], pts_dense_tx[~binary_pred, 1], s=self.marker_size, color="gray", alpha=0.3)
-        axs[0, 2].scatter(pts_dense_tx[binary_pred, 0], pts_dense_tx[binary_pred, 1], s=self.marker_size, color="red", alpha=0.8, label="Predicted Valid")
-        axs[0, 2].set_title("3. Final Model Decision\n(Threshold > 0.5)", fontsize=self.font_size_title)
-        axs[0, 2].legend()
+        # [0, 2] 3. Sparse Skeleton Generation
+        axs[0, 2].scatter(pts_sparse_tx[:, 0], pts_sparse_tx[:, 1], s=self.marker_size * 5.0, marker='*', color="limegreen", alpha=1.0, zorder=2, edgecolors='black', linewidths=1.0)
+        axs[0, 2].set_title("3. Sparse Skeleton Generation", fontsize=self.font_size_title)
 
         # --- BOTTOM ROW ---
-        # [1, 0] 4. Global Nodes & Weights (Sparse only)
-        if sparse_predictions is not None:
-            if isinstance(sparse_predictions, torch.Tensor):
-                sparse_predictions = torch.sigmoid(sparse_predictions).detach().cpu().numpy()
-            sc_s = axs[1, 0].scatter(pts_sparse_tx[:, 0], pts_sparse_tx[:, 1], c=sparse_predictions.flatten(), 
-                                     cmap='RdYlGn', s=self.marker_size * 2.5, marker='*', alpha=1.0, zorder=2, edgecolors='black', linewidths=0.2)
-            plt.colorbar(sc_s, ax=axs[1, 0], label="Backbone Score")
-        else:
-             axs[1, 0].scatter(pts_sparse_tx[:, 0], pts_sparse_tx[:, 1], s=self.marker_size * 2.5, marker='*', color="red", alpha=1.0, zorder=2)
-        axs[1, 0].set_title("4. Global Skeleton Activations", fontsize=self.font_size_title)
-
-        # [1, 1] 5. Local -> Global Mapping
-        axs[1, 1].scatter(pts_dense_tx[:, 0], pts_dense_tx[:, 1], s=self.marker_size, color="gray", alpha=0.05, zorder=0)
+        # [1, 0] 4. IDW Densification
+        axs[1, 0].scatter(pts_dense_tx[:, 0], pts_dense_tx[:, 1], s=self.marker_size, color="gray", alpha=0.2, zorder=0)
         if assign_idx is not None:
              if isinstance(assign_idx, torch.Tensor):
                  assign_idx = assign_idx.detach().cpu().numpy()
              dense_idx, sparse_idx = assign_idx[0], assign_idx[1]
              segments = np.stack([pts_dense_tx[dense_idx], pts_sparse_tx[sparse_idx]], axis=1)
-             lc = LineCollection(segments, colors='green', alpha=0.1, linewidths=0.5, zorder=1)
-             axs[1, 1].add_collection(lc)
+             lc = LineCollection(segments, colors='darkgreen', alpha=0.4, linewidths=0.7, zorder=1)
+             axs[1, 0].add_collection(lc)
         
-        # Vibrant stars on mapping plot
+        # Color-coded stars on IDW plot
         if sparse_predictions is not None:
-            axs[1, 1].scatter(pts_sparse_tx[:, 0], pts_sparse_tx[:, 1], c=sparse_predictions.flatten(), 
-                              cmap='RdYlGn', s=self.marker_size * 2.5, marker='*', alpha=1.0, zorder=2, edgecolors='black', linewidths=0.2)
+            if isinstance(sparse_predictions, torch.Tensor):
+                sparse_predictions = torch.sigmoid(sparse_predictions).detach().cpu().numpy()
+            sc_s = axs[1, 0].scatter(pts_sparse_tx[:, 0], pts_sparse_tx[:, 1], c=sparse_predictions.flatten(), 
+                              cmap=bright_cmap, s=self.marker_size * 5.0, marker='*', alpha=1.0, zorder=2, edgecolors='black', linewidths=1.5)
+            plt.colorbar(sc_s, ax=axs[1, 0], label="Backbone Score")
         else:
-            axs[1, 1].scatter(pts_sparse_tx[:, 0], pts_sparse_tx[:, 1], s=self.marker_size * 2.5, marker='*', color="red", alpha=1.0, zorder=2)
-        axs[1, 1].set_title("5. Local -> Global Mapping", fontsize=self.font_size_title)
+            axs[1, 0].scatter(pts_sparse_tx[:, 0], pts_sparse_tx[:, 1], s=self.marker_size * 5.0, marker='*', color="limegreen", alpha=1.0, zorder=2, edgecolors='black', linewidths=1.5)
+        axs[1, 0].set_title("4. IDW Densification", fontsize=self.font_size_title)
 
-        # [1, 2] 6. Dense Model Prediction (Heatmap)
-        sc = axs[1, 2].scatter(pts_dense_tx[:, 0], pts_dense_tx[:, 1], c=predictions.flatten(), cmap='RdYlGn', s=self.marker_size, alpha=0.8)
-        axs[1, 2].set_title("6. Dense Model Heatmap", fontsize=self.font_size_title)
-        plt.colorbar(sc, ax=axs[1, 2], label="Score")
+        # [1, 1] 5. Dense Model Heatmap
+        sc = axs[1, 1].scatter(pts_dense_tx[:, 0], pts_dense_tx[:, 1], c=predictions.flatten(), cmap=bright_cmap, s=self.marker_size, alpha=0.8)
+        axs[1, 1].set_title("5. Dense Model Heatmap", fontsize=self.font_size_title)
+        plt.colorbar(sc, ax=axs[1, 1], label="Score")
+
+        # [1, 2] 6. Final Model Decision (Binarized)
+        binary_pred = (predictions.flatten() > 0.5)
+        axs[1, 2].scatter(pts_dense_tx[~binary_pred, 0], pts_dense_tx[~binary_pred, 1], s=self.marker_size, color="gray", alpha=0.3)
+        axs[1, 2].scatter(pts_dense_tx[binary_pred, 0], pts_dense_tx[binary_pred, 1], s=self.marker_size, color="red", alpha=0.8, label="Predicted Valid")
+        axs[1, 2].set_title("6. Final Model Decision\n(Threshold > 0.5)", fontsize=self.font_size_title)
+        axs[1, 2].legend()
 
         for ax in axs.flatten():
+            self._apply_styling(ax)
             ax.set_xlim(left=-1 * self.plot_x_max, right=self.plot_x_max)
             ax.set_ylim(bottom=-1 * self.plot_y_max, top=self.plot_y_max)
             ax.set_xlabel("Y (m)", fontsize=self.font_size_axis_labels)
@@ -712,6 +721,7 @@ class PlotterGnnPCProcessing(_Plotter):
                 plt.colorbar(sc_p, ax=ax_bot, label="Score")
 
         for ax in axs.flatten():
+            self._apply_styling(ax)
             ax.set_xlim(left=-1 * self.plot_x_max, right=self.plot_x_max)
             ax.set_ylim(bottom=-1 * self.plot_y_max, top=self.plot_y_max)
             ax.set_xlabel("Y (m)", fontsize=self.font_size_axis_labels)
@@ -808,6 +818,7 @@ class PlotterGnnPCProcessing(_Plotter):
             axs[1, idx].axis('off')
 
         for ax in axs.flatten():
+            self._apply_styling(ax)
             if not ax.axison:
                 continue
             ax.set_xlim(left=-1 * self.plot_x_max, right=self.plot_x_max)

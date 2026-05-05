@@ -10,10 +10,10 @@ class _Plotter:
     def __init__(self):
         
         #define default plot parameters:
-        self.font_size_axis_labels = 12
-        self.font_size_title = 15
-        self.font_size_ticks = 12
-        self.font_size_legend = 12
+        self.font_size_axis_labels = 18
+        self.font_size_title = 20
+        self.font_size_ticks = 16
+        self.font_size_legend = 14
         self.plot_x_max = 10
         self.plot_y_max = 10
         self.marker_size = 15
